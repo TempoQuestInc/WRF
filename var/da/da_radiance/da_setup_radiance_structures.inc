@@ -92,6 +92,12 @@ subroutine da_setup_radiance_structures( grid, ob, iv )
          call da_read_obs_bufrtovs('mhs  ', iv, filename)
       end if
 
+      if (use_gems2obs) then
+         write(unit=stdout,fmt='(a)') 'Reading radiance 1b data from gems2.nc'
+         filename = 'gems2'
+         call da_read_obs_netcdf_gems2('gems2', iv, filename)
+      end if
+
       if (use_mwtsobs) then
          write(unit=stdout,fmt='(a)') 'Reading radiance 1b data from mwtsa.dat and mwtsb.dat'
          filename = 'mwtsa'

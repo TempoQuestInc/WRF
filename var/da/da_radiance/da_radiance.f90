@@ -50,9 +50,9 @@ module da_radiance
       qc_good, qc_bad,myproc,biascorr,thinning,thinning_mesh, &
       rad_monitoring, monitor_on, kts, kte, kms, kme, calc_weightfunc, &
       use_mwtsobs, use_mwhsobs, use_mwhs2obs, use_atmsobs, use_amsr2obs, use_ahiobs,use_gmiobs, &
-      use_hirs4obs, use_mhsobs,bufr_year, bufr_month,bufr_day,bufr_hour, &
+      use_hirs4obs, use_mhsobs, use_gems2obs, bufr_year, bufr_month,bufr_day,bufr_hour, &
       bufr_minute, bufr_second,bufr_solzen, bufr_station_height, &
-      bufr_landsea_mask,bufr_solazi,tovs_end, max_tovs_input, bufr_satzen, nchan_mhs, &
+      bufr_landsea_mask,bufr_solazi,tovs_end, max_tovs_input, bufr_satzen, nchan_mhs, nchan_gems2, &
       nchan_msu, nchan_amsua,nchan_hirs2, nchan_hirs3, nchan_hirs4, nchan_airs, &
       bufr_lon, bufr_satellite_id, bufr_ifov,nchan_amsub, tovs_start, bufr_lat, &
       use_pseudo_rad, pseudo_rad_platid,pseudo_rad_satid, pseudo_rad_senid, &
@@ -121,6 +121,7 @@ contains
 #include "da_read_simulated_rad.inc"
 #include "da_write_filtered_rad.inc"
 #include "da_read_obs_bufrtovs.inc"
+#include "da_read_obs_netcdf_gems2.inc"
 #include "da_read_obs_fy3.inc"
 #include "da_read_obs_hdf5mwhs2.inc"
 #include "da_read_obs_bufratms.inc"
