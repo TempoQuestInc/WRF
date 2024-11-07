@@ -188,6 +188,7 @@ rconfig   logical   use_hirs2obs            namelist,wrfvar4  1  .false.  - "use
 rconfig   logical   use_hirs3obs            namelist,wrfvar4  1  .false.  - "use_hirs3obs"             ""  ""
 rconfig   logical   use_hirs4obs            namelist,wrfvar4  1  .false.  - "use_hirs4obs"             ""  ""
 rconfig   logical   use_mhsobs              namelist,wrfvar4  1  .false.  - "use_mhsobs"               ""  ""
+rconfig   logical   use_gems2obs             namelist,wrfvar4  1  .false.  - "use_gems2obs"              ""  ""
 rconfig   logical   use_msuobs              namelist,wrfvar4  1  .false.  - "use_msuobs"               ""  ""
 rconfig   logical   use_amsuaobs            namelist,wrfvar4  1  .false.  - "use_amsuaobs"             ""  ""
 rconfig   logical   use_amsubobs            namelist,wrfvar4  1  .false.  - "use_amsubobs"             ""  ""

@@ -2145,6 +2145,7 @@ subroutine get_abil1b_grid2_1d( yy_abi, xx_abi, req, rpol, pph, nam, satellite_i
                              lat, lon, satzen, satazi, &
                              earthmask, zenmask )
 
+   use ieee_arithmetic
    implicit none
 
    real,              intent(in)  :: yy_abi(:), xx_abi(:)
@@ -2178,7 +2179,7 @@ subroutine get_abil1b_grid2_1d( yy_abi, xx_abi, req, rpol, pph, nam, satellite_i
    call get_abil1b_latlon_1d ( yy_abi, xx_abi, lat, lon, req, rpol, hh, nam )
 
    where( lat.eq.missing_r .OR. lon.eq.missing_r .OR. &
-          isnan(lat)       .OR. isnan(lon) )
+          ieee_is_nan(lat)       .OR. ieee_is_nan(lon) )
       earthmask = .false.
       lat       = missing_r
       lon       = missing_r
@@ -2186,7 +2187,7 @@ subroutine get_abil1b_grid2_1d( yy_abi, xx_abi, req, rpol, pph, nam, satellite_i
 
    call da_get_sat_angles_1d( lat, lon, satellite_id, satzen, satazi )
 
-   where ( isnan(satzen) .or. satzen.gt.satzen_limit .or. satzen.eq.missing_r )
+   where ( ieee_is_nan(satzen) .or. satzen.gt.satzen_limit .or. satzen.eq.missing_r )
       satzen  = missing_r
       zenmask = .false.
    end where

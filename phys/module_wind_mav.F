@@ -20,6 +20,8 @@ MODULE module_wind_mav
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !
 
+  use ieee_arithmetic
+
 #if defined(mpas)
   use mpas_dmpar
   use mpas_derived_types
@@ -1232,7 +1234,7 @@ MODULE module_wind_mav
 
       angle = real(acos(tmp1/tmp2), kind = 4)
 
-      if (isnan(angle)) then
+      if (ieee_is_nan(angle)) then
          angle = 0.
       end if
  
