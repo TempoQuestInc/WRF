@@ -90,6 +90,11 @@ subroutine da_read_obs_netcdf_gems2 (obstype,iv, infile)
    logical :: found, head_found
    integer :: ncid, varid, geolocation_gid, radiometric_data_gid, metadata_gid
    integer*8 :: nrecords
+   integer*2, allocatable, dimension(:) :: on_earth
+   real*8, allocatable, dimension(:) :: latitude,longitude
+   logical, allocatable, dimension(:) :: use_record
+   integer :: rid
+   real :: lat, lon
 
    call da_trace_entry("da_read_obs_netcdf_gems2")
 
@@ -199,9 +204,9 @@ bufrfile:  do ibufr=1,numbufr
    ! SE - read the number of records from the file
    ierr=nf_inq_varid(metadata_gid,'number_records',varid)
    ierr=nf_get_var(metadata_gid,varid,nrecords)
+   num_tovs_file=nrecords
 
    write (unit=stdout,fmt='(A,I6)') "   Number of records in netcdf file: ", nrecords
-   return
 
    ! Loop to read bufr file and assign information to a sequential structure
    !-------------------------------------------------------------------------
@@ -218,6 +223,56 @@ bufrfile:  do ibufr=1,numbufr
    end if
 
    ! SE - 2.0 - read lat/lon of obs
+   allocate(on_earth(nrecords))
+   allocate(latitude(nrecords))
+   allocate(longitude(nrecords))
+   ierr=nf_inq_varid(geolocation_gid,'on_earth',varid)
+   ierr=nf_get_var(geolocation_gid,varid,on_earth)
+   ierr=nf_inq_varid(geolocation_gid,'latitude',varid)
+   ierr=nf_get_var(geolocation_gid,varid,latitude)
+   ierr=nf_inq_varid(geolocation_gid,'longitude',varid)
+   ierr=nf_get_var(geolocation_gid,varid,longitude)
+
+   ! SE - determine which records to use
+   allocate(use_record(nrecords))
+
+   num_tovs_local = 0
+   do rid=1,nrecords
+        ! SE - this isn't working for some reason
+        ! if (on_earth(rid) == 0) then
+        !     write (unit=stdout,fmt=*) "   Obs point ", rid, "is not on Earth :: on_earth(rid) = ", on_earth(rid), " :: <lat,lon> = <", lat, ",", lon, ">"
+        !     use_record(rid) = .false.
+        !     cycle
+        ! endif
+        lat = real(latitude(rid))
+        lon = real(longitude(rid))
+        ! SE - if lat and lon are 0.0 then point is not on earth's surface
+        if ((lat .eq. 0.0) .and. (lon .eq. 0.0)) then
+            write (unit=stdout,fmt=*) "   Obs point ", rid, "is not on Earth :: on_earth(rid) = ", on_earth(rid), " :: <lat,lon> = <", lat, ",", lon, ">"
+            use_record(rid) = .false.
+            cycle
+        endif
+        info%lat = lat
+        info%lon = lon
+        call da_llxy (info, loc, outside, outside_all)
+        if (outside_all) then
+            write (unit=stdout,fmt=*) "   Obs point ", rid, "is outside of domain :: on_earth(rid) = ", on_earth(rid), " :: <lat,lon> = <", lat, ",", lon, ">"
+            use_record(rid) = .false.
+            cycle
+        endif
+        use_record(rid) = .true.
+        num_tovs_local = num_tovs_local + 1
+   enddo
+
+   write (unit=stdout,fmt='(A,I6)') "   Number of local records in netcdf file: ", num_tovs_local
+
+   ! SE - deallocate vaiables
+   deallocate(on_earth)
+   deallocate(latitude)
+   deallocate(longitude)
+   deallocate(use_record)
+
+   return
 
    obs: do while (ireadmg(lnbufr,subset,idate)==0 .and. subset==subfgn)
       do while (ireadsb(lnbufr)==0)
