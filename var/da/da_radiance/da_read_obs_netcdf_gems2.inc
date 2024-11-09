@@ -90,7 +90,7 @@ subroutine da_read_obs_netcdf_gems2 (obstype,iv, infile)
    logical :: found, head_found
    integer :: ncid, varid, geolocation_gid, radiometric_data_gid, metadata_gid
    integer*8 :: nrecords
-   integer*2, allocatable, dimension(:) :: on_earth
+   integer*1, allocatable, dimension(:) :: on_earth
    real*8, allocatable, dimension(:) :: latitude,longitude
    logical, allocatable, dimension(:) :: use_record
    integer :: rid
@@ -238,17 +238,10 @@ bufrfile:  do ibufr=1,numbufr
 
    num_tovs_local = 0
    do rid=1,nrecords
-        ! SE - this isn't working for some reason
-        ! if (on_earth(rid) == 0) then
-        !     write (unit=stdout,fmt=*) "   Obs point ", rid, "is not on Earth :: on_earth(rid) = ", on_earth(rid), " :: <lat,lon> = <", lat, ",", lon, ">"
-        !     use_record(rid) = .false.
-        !     cycle
-        ! endif
         lat = real(latitude(rid))
         lon = real(longitude(rid))
-        ! SE - if lat and lon are 0.0 then point is not on earth's surface
-        if ((lat .eq. 0.0) .and. (lon .eq. 0.0)) then
-            write (unit=stdout,fmt=*) "   Obs point ", rid, "is not on Earth :: on_earth(rid) = ", on_earth(rid), " :: <lat,lon> = <", lat, ",", lon, ">"
+        if (on_earth(rid) == 0) then
+            ! write (unit=stdout,fmt=*) "   Obs point ", rid, "is not on Earth :: on_earth(rid) = ", on_earth(rid), " :: <lat,lon> = <", lat, ",", lon, ">"
             use_record(rid) = .false.
             cycle
         endif
@@ -256,7 +249,7 @@ bufrfile:  do ibufr=1,numbufr
         info%lon = lon
         call da_llxy (info, loc, outside, outside_all)
         if (outside_all) then
-            write (unit=stdout,fmt=*) "   Obs point ", rid, "is outside of domain :: on_earth(rid) = ", on_earth(rid), " :: <lat,lon> = <", lat, ",", lon, ">"
+            ! write (unit=stdout,fmt=*) "   Obs point ", rid, "is outside of domain :: on_earth(rid) = ", on_earth(rid), " :: <lat,lon> = <", lat, ",", lon, ">"
             use_record(rid) = .false.
             cycle
         endif
