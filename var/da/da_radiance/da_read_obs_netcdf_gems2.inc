@@ -1,3 +1,64 @@
+subroutine unix_to_date(unix_time, year, month, day, hour, minute, second)
+    implicit none
+    real*8, intent(in) :: unix_time
+    integer, intent(out) :: year, month, day, hour, minute, second
+
+    integer :: days, seconds_in_day, leap_year, days_in_month
+    integer, parameter :: SECONDS_PER_DAY = 86400
+    integer, dimension(12) :: month_days_normal = (/31, 28, 31, 30, 31, 30, &
+                                                    31, 31, 30, 31, 30, 31/)
+    integer, dimension(12) :: month_days_leap = (/31, 29, 31, 30, 31, 30, &
+                                                  31, 31, 30, 31, 30, 31/)
+    integer, dimension(12) :: days_in_months
+
+    ! Calculate total days and remaining seconds in the day
+    days = int(unix_time / SECONDS_PER_DAY)
+    seconds_in_day = mod(unix_time, SECONDS_PER_DAY)
+
+    ! Calculate hour, minute, and second
+    hour = seconds_in_day / 3600
+    minute = mod(seconds_in_day, 3600) / 60
+    second = mod(seconds_in_day, 60)
+
+    ! Start from the Unix epoch year
+    year = 1970
+
+    ! Loop to find the correct year
+    do while (days >= 365)
+        leap_year = (mod(year, 4) == 0 .and. (mod(year, 100) /= 0 .or. mod(year, 400) == 0))
+        if (leap_year) then
+            if (days >= 366) then
+                days = days - 366
+                year = year + 1
+            else
+                exit
+            endif
+        else
+            days = days - 365
+            year = year + 1
+        endif
+    end do
+
+    ! Determine the month and day
+    leap_year = (mod(year, 4) == 0 .and. (mod(year, 100) /= 0 .or. mod(year, 400) == 0))
+
+    ! Set days_in_months based on whether it's a leap year
+    if (leap_year) then
+        days_in_months = month_days_leap
+    else
+        days_in_months = month_days_normal
+    endif
+
+    month = 1
+    do while (days >= days_in_months(month))
+        days = days - days_in_months(month)
+        month = month + 1
+    end do
+
+    day = days + 1
+
+end subroutine unix_to_date
+
 subroutine da_read_obs_netcdf_gems2 (obstype,iv, infile)
 
    !---------------------------------------------------------------------------
@@ -91,8 +152,7 @@ subroutine da_read_obs_netcdf_gems2 (obstype,iv, infile)
    integer :: ncid, varid, geolocation_gid, radiometric_data_gid, metadata_gid
    integer*8 :: nrecords
    integer*1, allocatable, dimension(:) :: on_earth
-   real*8, allocatable, dimension(:) :: latitude,longitude
-   logical, allocatable, dimension(:) :: use_record
+   real*8, allocatable, dimension(:) :: latitude,longitude, unix_timestamps
    integer :: rid
    real :: lat, lon
 
@@ -222,27 +282,25 @@ bufrfile:  do ibufr=1,numbufr
       write (unit=stdout,fmt='(A,I6)') "   Skipping tovs obs before", tovs_start
    end if
 
-   ! SE - 2.0 - read lat/lon of obs
-   allocate(on_earth(nrecords))
    allocate(latitude(nrecords))
    allocate(longitude(nrecords))
+   allocate(unix_timestamps(nrecords))
    ierr=nf_inq_varid(geolocation_gid,'on_earth',varid)
    ierr=nf_get_var(geolocation_gid,varid,on_earth)
    ierr=nf_inq_varid(geolocation_gid,'latitude',varid)
    ierr=nf_get_var(geolocation_gid,varid,latitude)
    ierr=nf_inq_varid(geolocation_gid,'longitude',varid)
    ierr=nf_get_var(geolocation_gid,varid,longitude)
-
-   ! SE - determine which records to use
-   allocate(use_record(nrecords))
+   ierr=nf_inq_varid(radiometric_data_gid,'unix_timestamps',varid)
+   ierr=nf_get_var(radiometric_data_gid,varid,unix_timestamps)
 
    num_tovs_local = 0
    do rid=1,nrecords
+        ! SE - 2.0 - read lat/lon of obs
         lat = real(latitude(rid))
         lon = real(longitude(rid))
         if (on_earth(rid) == 0) then
             ! write (unit=stdout,fmt=*) "   Obs point ", rid, "is not on Earth :: on_earth(rid) = ", on_earth(rid), " :: <lat,lon> = <", lat, ",", lon, ">"
-            use_record(rid) = .false.
             cycle
         endif
         info%lat = lat
@@ -250,20 +308,41 @@ bufrfile:  do ibufr=1,numbufr
         call da_llxy (info, loc, outside, outside_all)
         if (outside_all) then
             ! write (unit=stdout,fmt=*) "   Obs point ", rid, "is outside of domain :: on_earth(rid) = ", on_earth(rid), " :: <lat,lon> = <", lat, ",", lon, ">"
-            use_record(rid) = .false.
             cycle
         endif
-        use_record(rid) = .true.
+
+        ! SE - 2.0 - get time of obs
+        call unix_to_date(unix_timestamps(rid), year, month, day, hour, minute, second)
+        call da_get_julian_time(year,month,day,hour,minute,obs_time)
+
+        if (obs_time < time_slots(0) .or.  &
+            obs_time >= time_slots(num_fgat_time)) then
+            ! write (unit=stdout,fmt='(A,I6,A,I4,I2,I2,I2,I2,I2)') "   Obs point ", rid, "is outside of time range :: ", year, month, day, hour, minute, second
+            cycle
+        ! else
+        !     write (unit=stdout,fmt='(A,I6,A,I4,I2,I2,I2,I2,I2)') "   Obs point ", rid, "is inside of time range :: ", year, month, day, hour, minute, second
+        endif
+
+         ! 3.2.1 determine FGAT index ifgat
+   
+         ! do ifgat=1,num_fgat_time
+         !    if (obs_time >= time_slots(ifgat-1) .and.  &
+         !        obs_time  < time_slots(ifgat)) exit
+         ! end do
+
+
         num_tovs_local = num_tovs_local + 1
+
    enddo
 
    write (unit=stdout,fmt='(A,I6)') "   Number of local records in netcdf file: ", num_tovs_local
+
 
    ! SE - deallocate vaiables
    deallocate(on_earth)
    deallocate(latitude)
    deallocate(longitude)
-   deallocate(use_record)
+   deallocate(unix_timestamps)
 
    return
 
