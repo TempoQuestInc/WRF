@@ -127,7 +127,7 @@ subroutine da_read_obs_netcdf_gems2 (obstype,iv, infile)
    real      ::  satzen, satazi, solzen ,solazi       !  scan angles for Anfovs
    integer   ::  landsea_mask
    real      ::  srf_height
-   ! channels' bright temperature
+   ! channels bright temperature
    real , allocatable ::   tb_inv(:)                    !  bright temperatures
    !  end type bright_temperature
 
@@ -149,10 +149,11 @@ subroutine da_read_obs_netcdf_gems2 (obstype,iv, infile)
    integer(i_kind), allocatable :: ptotal(:)
    real , allocatable :: in(:), out(:)
    logical :: found, head_found
-   integer :: ncid, varid, geolocation_gid, radiometric_data_gid, metadata_gid
+   integer :: ncid, varid, ephemeris_data_gid, geolocation_gid, radiometric_data_gid, metadata_gid
    integer*8 :: nrecords
    integer*1, allocatable, dimension(:) :: on_earth
    real*8, allocatable, dimension(:) :: latitude,longitude, unix_timestamps
+   real*8, allocatable, dimension(:) :: sat_az, sat_zen, sun_az, sun_zen
    integer :: rid
    real :: lat, lon
 
@@ -239,6 +240,13 @@ bufrfile:  do ibufr=1,numbufr
    end if
 
    ! SE - get group ids in netcdf file
+   ierr=nf_inq_grp_ncid(ncid,'ephemeris_data',ephemeris_data_gid)
+   if (ierr /= 0) then
+      call da_warning(__FILE__,__LINE__, &
+         (/"Cannot get group id for ephemeris_data group in "//infile/))
+      call da_trace_exit("da_read_obs_netcdf_gems2")
+      return
+   end if
    ierr=nf_inq_grp_ncid(ncid,'geolocation_data',geolocation_gid)
    if (ierr /= 0) then
       call da_warning(__FILE__,__LINE__, &
@@ -282,15 +290,32 @@ bufrfile:  do ibufr=1,numbufr
       write (unit=stdout,fmt='(A,I6)') "   Skipping tovs obs before", tovs_start
    end if
 
-   allocate(latitude(nrecords))
-   allocate(longitude(nrecords))
-   allocate(unix_timestamps(nrecords))
+   ! SE - read variables from netcdf file
+   ! allocate(VAR(nrecords))
+   ! ierr=nf_inq_varid(ephemeris_data_gid,'VAR',varid)
+   ! ierr=nf_get_var(ephemeris_data_gid,varid,VAR)
+   allocate(sat_zen(nrecords))
+   ierr=nf_inq_varid(ephemeris_data_gid,'sat_zen',varid)
+   ierr=nf_get_var(ephemeris_data_gid,varid,sat_zen)
+   allocate(sat_az(nrecords))
+   ierr=nf_inq_varid(ephemeris_data_gid,'sat_az',varid)
+   ierr=nf_get_var(ephemeris_data_gid,varid,sat_az)
+   allocate(sun_zen(nrecords))
+   ierr=nf_inq_varid(ephemeris_data_gid,'sun_zen',varid)
+   ierr=nf_get_var(ephemeris_data_gid,varid,sun_zen)
+   allocate(sun_az(nrecords))
+   ierr=nf_inq_varid(ephemeris_data_gid,'sun_az',varid)
+   ierr=nf_get_var(ephemeris_data_gid,varid,sun_az)
+   allocate(on_earth(nrecords))
    ierr=nf_inq_varid(geolocation_gid,'on_earth',varid)
    ierr=nf_get_var(geolocation_gid,varid,on_earth)
+   allocate(latitude(nrecords))
    ierr=nf_inq_varid(geolocation_gid,'latitude',varid)
    ierr=nf_get_var(geolocation_gid,varid,latitude)
+   allocate(longitude(nrecords))
    ierr=nf_inq_varid(geolocation_gid,'longitude',varid)
    ierr=nf_get_var(geolocation_gid,varid,longitude)
+   allocate(unix_timestamps(nrecords))
    ierr=nf_inq_varid(radiometric_data_gid,'unix_timestamps',varid)
    ierr=nf_get_var(radiometric_data_gid,varid,unix_timestamps)
 
@@ -311,7 +336,13 @@ bufrfile:  do ibufr=1,numbufr
             cycle
         endif
 
-        ! SE - 2.0 - get time of obs
+         !  3.0     Extract other information
+         !------------------------------------------------------
+         !  3.1     Extract satellite id and scan position. 
+         ! SE - skip this for now. I think that these variables may not be necessary since they are used to calculate products that
+         ! already exist in the GEMS dataset
+
+        ! SE - 3.2 - extract date info
         call unix_to_date(unix_timestamps(rid), year, month, day, hour, minute, second)
         call da_get_julian_time(year,month,day,hour,minute,obs_time)
 
@@ -325,10 +356,35 @@ bufrfile:  do ibufr=1,numbufr
 
          ! 3.2.1 determine FGAT index ifgat
    
-         ! do ifgat=1,num_fgat_time
-         !    if (obs_time >= time_slots(ifgat-1) .and.  &
-         !        obs_time  < time_slots(ifgat)) exit
+         do ifgat=1,num_fgat_time
+            if (obs_time >= time_slots(ifgat-1) .and.  &
+                obs_time  < time_slots(ifgat)) exit
+         end do
+
+         ! 3.3 Find wrfvar instrument index from RTTOV instrument triplet
+         !     go to next data if id is not in the lists
+
+         ! inst = 0
+         ! do i = 1, rtminit_nsensor
+         !    if (platform_id  == rtminit_platform(i) &
+         !       .and. satellite_id == rtminit_satid(i)    &
+         !       .and. sensor_id    == rtminit_sensor(i)) then
+         !       inst = i
+         !       exit
+         !    end if
          ! end do
+         ! if (inst == 0) cycle
+
+         ! 3.4 extract satellite and solar angle
+         satzen = real(sat_zen(rid))*rad2deg
+         satazi = real(sat_az(rid))*rad2deg
+         solzen = real(sun_zen(rid))*rad2deg
+         solazi = real(sun_az(rid))*rad2deg
+
+         if ( satzen > 65.0 ) then   ! CRTM has a satzen > 65.0 check
+            write (unit=stdout,fmt=*) "   Obs point ", rid, "obs angle is too shallow :: <satzen, satazi, solzen, solazi> = <", satzen, satazi, solzen, solazi, ">"
+            cycle
+        endif
 
 
         num_tovs_local = num_tovs_local + 1
@@ -339,6 +395,10 @@ bufrfile:  do ibufr=1,numbufr
 
 
    ! SE - deallocate vaiables
+   deallocate(sat_zen)
+   deallocate(sat_az)
+   deallocate(sun_zen)
+   deallocate(sun_az)
    deallocate(on_earth)
    deallocate(latitude)
    deallocate(longitude)
