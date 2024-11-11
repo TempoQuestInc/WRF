@@ -154,6 +154,7 @@ subroutine da_read_obs_netcdf_gems2 (obstype,iv, infile)
    integer*1, allocatable, dimension(:) :: on_earth
    real*8, allocatable, dimension(:) :: latitude,longitude, unix_timestamps
    real*8, allocatable, dimension(:) :: sat_az, sat_zen, sun_az, sun_zen
+   real*8, allocatable, dimension(:) :: altitude
    integer :: rid
    real :: lat, lon
 
@@ -294,6 +295,9 @@ bufrfile:  do ibufr=1,numbufr
    ! allocate(VAR(nrecords))
    ! ierr=nf_inq_varid(ephemeris_data_gid,'VAR',varid)
    ! ierr=nf_get_var(ephemeris_data_gid,varid,VAR)
+   allocate(altitude(nrecords))
+   ierr=nf_inq_varid(geolocation_gid,'altitude',varid)
+   ierr=nf_get_var(geolocation_gid,varid,altitude)
    allocate(sat_zen(nrecords))
    ierr=nf_inq_varid(ephemeris_data_gid,'sat_zen',varid)
    ierr=nf_get_var(ephemeris_data_gid,varid,sat_zen)
@@ -320,7 +324,7 @@ bufrfile:  do ibufr=1,numbufr
    ierr=nf_get_var(radiometric_data_gid,varid,unix_timestamps)
 
    num_tovs_local = 0
-   do rid=1,nrecords
+   myobs: do rid=1,nrecords
         ! SE - 2.0 - read lat/lon of obs
         lat = real(latitude(rid))
         lon = real(longitude(rid))
@@ -364,16 +368,22 @@ bufrfile:  do ibufr=1,numbufr
          ! 3.3 Find wrfvar instrument index from RTTOV instrument triplet
          !     go to next data if id is not in the lists
 
-         ! inst = 0
-         ! do i = 1, rtminit_nsensor
-         !    if (platform_id  == rtminit_platform(i) &
-         !       .and. satellite_id == rtminit_satid(i)    &
-         !       .and. sensor_id    == rtminit_sensor(i)) then
-         !       inst = i
-         !       exit
-         !    end if
-         ! end do
-         ! if (inst == 0) cycle
+         ! SE - These are dummy values for now that shouldn't overlap with existing platform/sat/sensor options. I'll come back to
+         ! this once I have a better understanding of the conventions around these
+         platform_id = 100
+         satellite_id = 100
+         sensor_id = 100
+
+         inst = 0
+         do i = 1, rtminit_nsensor
+            if (platform_id  == rtminit_platform(i) &
+               .and. satellite_id == rtminit_satid(i)    &
+               .and. sensor_id    == rtminit_sensor(i)) then
+               inst = i
+               exit
+            end if
+         end do
+         if (inst == 0) cycle
 
          ! 3.4 extract satellite and solar angle
          satzen = real(sat_zen(rid))*rad2deg
@@ -382,19 +392,84 @@ bufrfile:  do ibufr=1,numbufr
          solazi = real(sun_az(rid))*rad2deg
 
          if ( satzen > 65.0 ) then   ! CRTM has a satzen > 65.0 check
-            write (unit=stdout,fmt=*) "   Obs point ", rid, "obs angle is too shallow :: <satzen, satazi, solzen, solazi> = <", satzen, satazi, solzen, solazi, ">"
+            ! write (unit=stdout,fmt=*) "   Obs point ", rid, "obs angle is too shallow :: <satzen, satazi, solzen, solazi> = <", satzen, satazi, solzen, solazi, ">"
             cycle
         endif
 
+         num_tovs_global = num_tovs_global + 1
+         ptotal(ifgat) = ptotal(ifgat) + 1
 
-        num_tovs_local = num_tovs_local + 1
+         if (num_tovs_global < tovs_start) then
+            cycle
+         end if
 
-   enddo
+         if (num_tovs_global > tovs_end) then
+            write (unit=stdout,fmt='(A,I6)') "   Skipping radiance obs after", tovs_end
+            exit myobs
+         end if
+
+         num_tovs_selected = num_tovs_selected + 1
+ 
+         if (num_tovs_selected > max_tovs_input) then
+            write(unit=message(1),fmt='(A,I10,A)') &
+               "Max number of tovs",max_tovs_input," reached"
+            call da_warning(__FILE__,__LINE__,message(1:1))
+            num_tovs_selected = num_tovs_selected-1
+            num_tovs_global   = num_tovs_global-1
+            ptotal(ifgat) = ptotal(ifgat) - 1
+            exit myobs
+         end if
+
+         if (outside) cycle ! No good for this PE
+         num_tovs_local = num_tovs_local + 1
+
+
+         !  Make Thinning
+         !  Map obs to thinning grid
+         !-------------------------------------------------------------------
+         if (thinning) then
+            dlat_earth = info%lat
+            dlon_earth = info%lon
+            if (dlon_earth<zero) dlon_earth = dlon_earth+r360
+            if (dlon_earth>=r360) dlon_earth = dlon_earth-r360
+            dlat_earth = dlat_earth*deg2rad
+            dlon_earth = dlon_earth*deg2rad           
+            timedif = 0.0 !2.0_r_kind*abs(tdiff)        ! range:  0 to 6
+            terrain = 0.01_r_kind*abs(altitude(rid))
+            crit = 1.0 !0.01_r_kind+terrain + timedif !+ 10.0_r_kind*float(iskip)
+            call map2grids(inst,ifgat,dlat_earth,dlon_earth,crit,iobs,itx,1,itt,iout,iuse)
+            if (.not. iuse) then
+               num_tovs_thinned=num_tovs_thinned+1
+               cycle
+            end if
+         end if
+
+         num_tovs_used = num_tovs_used + 1
+         nread(inst) = nread(inst) + 1
+
+         ! 3.5 extract surface information
+         srf_height = real(altitude(rid))          ! station height
+         if (srf_height < 8888.0 .AND. srf_height > -416.0) then
+         else
+            srf_height = 0.0
+         endif  
+
+         ! SE - need to fix this once input file has land/sea mask
+         landsea_mask = 1  ! 0:land ; 1:sea (same as RTTOV)
+         ! rmask=one                          ! land
+         ! if (nint(bfr1bhdr(bufr_landsea_mask))==1) rmask=0.0_r_kind   ! reverse the land/sea mask in bufr
+         ! landsea_mask = rmask+.001_r_kind             ! land sea mask
+
+         info%elv = srf_height
+
+
+   enddo myobs
 
    write (unit=stdout,fmt='(A,I6)') "   Number of local records in netcdf file: ", num_tovs_local
 
 
    ! SE - deallocate vaiables
+   deallocate(altitude)
    deallocate(sat_zen)
    deallocate(sat_az)
    deallocate(sun_zen)
