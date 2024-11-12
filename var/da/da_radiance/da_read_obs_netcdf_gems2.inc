@@ -1,64 +1,3 @@
-subroutine unix_to_date(unix_time, year, month, day, hour, minute, second)
-    implicit none
-    real*8, intent(in) :: unix_time
-    integer, intent(out) :: year, month, day, hour, minute, second
-
-    integer :: days, seconds_in_day, leap_year, days_in_month
-    integer, parameter :: SECONDS_PER_DAY = 86400
-    integer, dimension(12) :: month_days_normal = (/31, 28, 31, 30, 31, 30, &
-                                                    31, 31, 30, 31, 30, 31/)
-    integer, dimension(12) :: month_days_leap = (/31, 29, 31, 30, 31, 30, &
-                                                  31, 31, 30, 31, 30, 31/)
-    integer, dimension(12) :: days_in_months
-
-    ! Calculate total days and remaining seconds in the day
-    days = int(unix_time / SECONDS_PER_DAY)
-    seconds_in_day = mod(unix_time, SECONDS_PER_DAY)
-
-    ! Calculate hour, minute, and second
-    hour = seconds_in_day / 3600
-    minute = mod(seconds_in_day, 3600) / 60
-    second = mod(seconds_in_day, 60)
-
-    ! Start from the Unix epoch year
-    year = 1970
-
-    ! Loop to find the correct year
-    do while (days >= 365)
-        leap_year = (mod(year, 4) == 0 .and. (mod(year, 100) /= 0 .or. mod(year, 400) == 0))
-        if (leap_year) then
-            if (days >= 366) then
-                days = days - 366
-                year = year + 1
-            else
-                exit
-            endif
-        else
-            days = days - 365
-            year = year + 1
-        endif
-    end do
-
-    ! Determine the month and day
-    leap_year = (mod(year, 4) == 0 .and. (mod(year, 100) /= 0 .or. mod(year, 400) == 0))
-
-    ! Set days_in_months based on whether it's a leap year
-    if (leap_year) then
-        days_in_months = month_days_leap
-    else
-        days_in_months = month_days_normal
-    endif
-
-    month = 1
-    do while (days >= days_in_months(month))
-        days = days - days_in_months(month)
-        month = month + 1
-    end do
-
-    day = days + 1
-
-end subroutine unix_to_date
-
 subroutine da_read_obs_netcdf_gems2 (obstype,iv, infile)
 
    !---------------------------------------------------------------------------
@@ -235,49 +174,24 @@ bufrfile:  do ibufr=1,numbufr
 
    ! SE - open file
    ierr=nf_open(trim(filename),nf_nowrite,ncid)
-   if (ierr /= 0) then
-      call da_warning(__FILE__,__LINE__, &
-         (/"Cannot open file "//infile/))
-      call da_trace_exit("da_read_obs_netcdf_gems2")
-      return
-   end if
+   call check_netcdf_status(__FILE__, __LINE__, ierr, "error opening file "//trim(filename))
 
    ! SE - get group ids in netcdf file
    ierr=nf_inq_grp_ncid(ncid,'ephemeris_data',ephemeris_data_gid)
-   if (ierr /= 0) then
-      call da_warning(__FILE__,__LINE__, &
-         (/"Cannot get group id for ephemeris_data group in "//infile/))
-      call da_trace_exit("da_read_obs_netcdf_gems2")
-      return
-   end if
+   call check_netcdf_status(__FILE__, __LINE__, ierr, "error accessing ephemeris_data group")
    ierr=nf_inq_grp_ncid(ncid,'geolocation_data',geolocation_gid)
-   if (ierr /= 0) then
-      call da_warning(__FILE__,__LINE__, &
-         (/"Cannot get group id for geolocation_data group in "//infile/))
-      call da_trace_exit("da_read_obs_netcdf_gems2")
-      return
-   end if
+   call check_netcdf_status(__FILE__, __LINE__, ierr, "error accessing geolocation_data group")
    ierr=nf_inq_grp_ncid(ncid,'radiometric_data',radiometric_data_gid)
-   if (ierr /= 0) then
-      call da_warning(__FILE__,__LINE__, &
-         (/"Cannot get group id for radiometric_data group in "//infile/))
-      call da_trace_exit("da_read_obs_netcdf_gems2")
-      return
-   end if
+   call check_netcdf_status(__FILE__, __LINE__, ierr, "error accessing radiometric_data group")
    ierr=nf_inq_grp_ncid(ncid,'metadata',metadata_gid)
-   if (ierr /= 0) then
-      call da_warning(__FILE__,__LINE__, &
-         (/"Cannot get group id for metadata group in "//infile/))
-      call da_trace_exit("da_read_obs_netcdf_gems2")
-      return
-   end if
+   call check_netcdf_status(__FILE__, __LINE__, ierr, "error accessing metadata group")
 
    ! SE - read the number of records from the file
    ierr=nf_inq_varid(metadata_gid,'number_records',varid)
+   call check_netcdf_status(__FILE__, __LINE__, ierr, "error accessing number_records variable")
    ierr=nf_get_var(metadata_gid,varid,nrecords)
+   call check_netcdf_status(__FILE__, __LINE__, ierr, "error accessing number_records variable")
    num_tovs_file=nrecords
-
-   write (unit=stdout,fmt='(A,I6)') "   Number of records in netcdf file: ", nrecords
 
    ! Loop to read bufr file and assign information to a sequential structure
    !-------------------------------------------------------------------------
@@ -299,43 +213,58 @@ bufrfile:  do ibufr=1,numbufr
    ! ierr=nf_get_var(ephemeris_data_gid,varid,VAR)
    allocate(main_beam_antenna_temperatures(nchan,nrecords))
    ierr=nf_inq_varid(radiometric_data_gid,'main_beam_antenna_temperatures',varid)
+   call check_netcdf_status(__FILE__, __LINE__, ierr, "error accessing main_beam_antenna_temperatures variable")
    ierr=nf_get_var(radiometric_data_gid,varid,main_beam_antenna_temperatures)
+   call check_netcdf_status(__FILE__, __LINE__, ierr, "error accessing main_beam_antenna_temperatures variable")
    allocate(altitude(nrecords))
    ierr=nf_inq_varid(geolocation_gid,'altitude',varid)
+   call check_netcdf_status(__FILE__, __LINE__, ierr, "error accessing altitude variable")
    ierr=nf_get_var(geolocation_gid,varid,altitude)
+   call check_netcdf_status(__FILE__, __LINE__, ierr, "error accessing altitude variable")
    allocate(sat_zen(nrecords))
    ierr=nf_inq_varid(ephemeris_data_gid,'sat_zen',varid)
+   call check_netcdf_status(__FILE__, __LINE__, ierr, "error accessing sat_zen variable")
    ierr=nf_get_var(ephemeris_data_gid,varid,sat_zen)
+   call check_netcdf_status(__FILE__, __LINE__, ierr, "error accessing sat_zen variable")
    allocate(sat_az(nrecords))
    ierr=nf_inq_varid(ephemeris_data_gid,'sat_az',varid)
+   call check_netcdf_status(__FILE__, __LINE__, ierr, "error accessing sat_az variable")
    ierr=nf_get_var(ephemeris_data_gid,varid,sat_az)
+   call check_netcdf_status(__FILE__, __LINE__, ierr, "error accessing sat_az variable")
    allocate(sun_zen(nrecords))
    ierr=nf_inq_varid(ephemeris_data_gid,'sun_zen',varid)
+   call check_netcdf_status(__FILE__, __LINE__, ierr, "error accessing sun_zen variable")
    ierr=nf_get_var(ephemeris_data_gid,varid,sun_zen)
+   call check_netcdf_status(__FILE__, __LINE__, ierr, "error accessing sun_zen variable")
    allocate(sun_az(nrecords))
    ierr=nf_inq_varid(ephemeris_data_gid,'sun_az',varid)
+   call check_netcdf_status(__FILE__, __LINE__, ierr, "error accessing sun_az variable")
    ierr=nf_get_var(ephemeris_data_gid,varid,sun_az)
+   call check_netcdf_status(__FILE__, __LINE__, ierr, "error accessing sun_az variable")
    allocate(on_earth(nrecords))
    ierr=nf_inq_varid(geolocation_gid,'on_earth',varid)
+   call check_netcdf_status(__FILE__, __LINE__, ierr, "error accessing on_earth variable")
    ierr=nf_get_var(geolocation_gid,varid,on_earth)
+   call check_netcdf_status(__FILE__, __LINE__, ierr, "error accessing on_earth variable")
    allocate(latitude(nrecords))
    ierr=nf_inq_varid(geolocation_gid,'latitude',varid)
+   call check_netcdf_status(__FILE__, __LINE__, ierr, "error accessing latitude variable")
    ierr=nf_get_var(geolocation_gid,varid,latitude)
+   call check_netcdf_status(__FILE__, __LINE__, ierr, "error accessing latitude variable")
    allocate(longitude(nrecords))
    ierr=nf_inq_varid(geolocation_gid,'longitude',varid)
+   call check_netcdf_status(__FILE__, __LINE__, ierr, "error accessing longitude variable")
    ierr=nf_get_var(geolocation_gid,varid,longitude)
+   call check_netcdf_status(__FILE__, __LINE__, ierr, "error accessing longitude variable")
    allocate(unix_timestamps(nrecords))
    ierr=nf_inq_varid(radiometric_data_gid,'unix_timestamps',varid)
+   call check_netcdf_status(__FILE__, __LINE__, ierr, "error accessing unix_timestamps variable")
    ierr=nf_get_var(radiometric_data_gid,varid,unix_timestamps)
+   call check_netcdf_status(__FILE__, __LINE__, ierr, "error accessing unix_timestamps variable")
 
    ! SE - close file
    ierr=nf_close(ncid)
-   if (ierr /= 0) then
-      call da_warning(__FILE__,__LINE__, &
-         (/"Cannot close file "//infile/))
-      call da_trace_exit("da_read_obs_netcdf_gems2")
-      return
-   end if
+   call check_netcdf_status(__FILE__, __LINE__, ierr, "error closing netcdf file")
 
    obs: do rid=1,nrecords
          ! write (unit=stdout,fmt=*) "Tb(ch=1)", main_beam_antenna_temperatures(1,rid), " for obs #", rid
@@ -517,8 +446,6 @@ bufrfile:  do ibufr=1,numbufr
 
 
    enddo obs
-
-   write (unit=stdout,fmt='(A,I6)') "   Number of local records in netcdf file: ", num_tovs_local
 
 
    ! SE - deallocate vaiables
@@ -707,6 +634,82 @@ end do bufrfile
    call da_error(__FILE__,__LINE__,(/"Needs to be compiled with a BUFR library"/)) 
 #endif
   
+contains
+
+  ! Subroutine for error checking NetCDF status
+  subroutine check_netcdf_status(file, line, status, action)
+    character(len=*), intent(in) :: file
+    integer, intent(in) :: line
+    integer, intent(in) :: status
+    character(len=*), intent(in) :: action
+
+    if (status /= nf_noerr) then
+       call da_trace_exit("da_read_obs_netcdf_gems2")
+       call da_error(file,line,(/"Error "//action//":"//trim(nf_strerror(status))/))
+    end if
+  end subroutine check_netcdf_status
+
+    subroutine unix_to_date(unix_time, year, month, day, hour, minute, second)
+        implicit none
+        real*8, intent(in) :: unix_time
+        integer, intent(out) :: year, month, day, hour, minute, second
+
+        integer :: days, seconds_in_day, leap_year, days_in_month
+        integer, parameter :: SECONDS_PER_DAY = 86400
+        integer, dimension(12) :: month_days_normal = (/31, 28, 31, 30, 31, 30, &
+                                                        31, 31, 30, 31, 30, 31/)
+        integer, dimension(12) :: month_days_leap = (/31, 29, 31, 30, 31, 30, &
+                                                      31, 31, 30, 31, 30, 31/)
+        integer, dimension(12) :: days_in_months
+
+        ! Calculate total days and remaining seconds in the day
+        days = int(unix_time / SECONDS_PER_DAY)
+        seconds_in_day = mod(unix_time, SECONDS_PER_DAY)
+
+        ! Calculate hour, minute, and second
+        hour = seconds_in_day / 3600
+        minute = mod(seconds_in_day, 3600) / 60
+        second = mod(seconds_in_day, 60)
+
+        ! Start from the Unix epoch year
+        year = 1970
+
+        ! Loop to find the correct year
+        do while (days >= 365)
+            leap_year = (mod(year, 4) == 0 .and. (mod(year, 100) /= 0 .or. mod(year, 400) == 0))
+            if (leap_year) then
+                if (days >= 366) then
+                    days = days - 366
+                    year = year + 1
+                else
+                    exit
+                endif
+            else
+                days = days - 365
+                year = year + 1
+            endif
+        end do
+
+        ! Determine the month and day
+        leap_year = (mod(year, 4) == 0 .and. (mod(year, 100) /= 0 .or. mod(year, 400) == 0))
+
+        ! Set days_in_months based on whether it's a leap year
+        if (leap_year) then
+            days_in_months = month_days_leap
+        else
+            days_in_months = month_days_normal
+        endif
+
+        month = 1
+        do while (days >= days_in_months(month))
+            days = days - days_in_months(month)
+            month = month + 1
+        end do
+
+        day = days + 1
+
+    end subroutine unix_to_date
+
 
 end subroutine da_read_obs_netcdf_gems2
 
