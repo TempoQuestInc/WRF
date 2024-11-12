@@ -155,6 +155,7 @@ subroutine da_read_obs_netcdf_gems2 (obstype,iv, infile)
    real*8, allocatable, dimension(:) :: latitude,longitude, unix_timestamps
    real*8, allocatable, dimension(:) :: sat_az, sat_zen, sun_az, sun_zen
    real*8, allocatable, dimension(:) :: altitude
+   real*8, allocatable, dimension(:,:) :: main_beam_antenna_temperatures
    integer :: rid
    real :: lat, lon
 
@@ -296,6 +297,9 @@ bufrfile:  do ibufr=1,numbufr
    ! allocate(VAR(nrecords))
    ! ierr=nf_inq_varid(ephemeris_data_gid,'VAR',varid)
    ! ierr=nf_get_var(ephemeris_data_gid,varid,VAR)
+   allocate(main_beam_antenna_temperatures(nchan,nrecords))
+   ierr=nf_inq_varid(radiometric_data_gid,'main_beam_antenna_temperatures',varid)
+   ierr=nf_get_var(radiometric_data_gid,varid,main_beam_antenna_temperatures)
    allocate(altitude(nrecords))
    ierr=nf_inq_varid(geolocation_gid,'altitude',varid)
    ierr=nf_get_var(geolocation_gid,varid,altitude)
@@ -324,8 +328,17 @@ bufrfile:  do ibufr=1,numbufr
    ierr=nf_inq_varid(radiometric_data_gid,'unix_timestamps',varid)
    ierr=nf_get_var(radiometric_data_gid,varid,unix_timestamps)
 
-   num_tovs_local = 0
-   myobs: do rid=1,nrecords
+   ! SE - close file
+   ierr=nf_close(ncid)
+   if (ierr /= 0) then
+      call da_warning(__FILE__,__LINE__, &
+         (/"Cannot close file "//infile/))
+      call da_trace_exit("da_read_obs_netcdf_gems2")
+      return
+   end if
+
+   obs: do rid=1,nrecords
+         ! write (unit=stdout,fmt=*) "Tb(ch=1)", main_beam_antenna_temperatures(1,rid), " for obs #", rid
         ! SE - 2.0 - read lat/lon of obs
         lat = real(latitude(rid))
         lon = real(longitude(rid))
@@ -408,7 +421,7 @@ bufrfile:  do ibufr=1,numbufr
 
          if (num_tovs_global > tovs_end) then
             write (unit=stdout,fmt='(A,I6)') "   Skipping radiance obs after", tovs_end
-            exit myobs
+            exit obs
          end if
 
          num_tovs_selected = num_tovs_selected + 1
@@ -420,7 +433,7 @@ bufrfile:  do ibufr=1,numbufr
             num_tovs_selected = num_tovs_selected-1
             num_tovs_global   = num_tovs_global-1
             ptotal(ifgat) = ptotal(ifgat) - 1
-            exit myobs
+            exit obs
          end if
 
          if (outside) cycle ! No good for this PE
@@ -465,223 +478,11 @@ bufrfile:  do ibufr=1,numbufr
 
          info%elv = srf_height
 
-
-   enddo myobs
-
-   write (unit=stdout,fmt='(A,I6)') "   Number of local records in netcdf file: ", num_tovs_local
-
-
-   ! SE - deallocate vaiables
-   deallocate(altitude)
-   deallocate(sat_zen)
-   deallocate(sat_az)
-   deallocate(sun_zen)
-   deallocate(sun_az)
-   deallocate(on_earth)
-   deallocate(latitude)
-   deallocate(longitude)
-   deallocate(unix_timestamps)
-
-   return
-
-   obs: do while (ireadmg(lnbufr,subset,idate)==0 .and. subset==subfgn)
-      do while (ireadsb(lnbufr)==0)
-
-         ! 1.0     Read header record and data record
-         call ufbint(lnbufr,bfr1bhdr,n1bhdr,1,iret,hdr1b)
-         call ufbint(lnbufr,bfr2bhdr,n2bhdr,1,iret,hdr2b)
-         call ufbrep(lnbufr,data1b8,1,nchan,iret,'TMBR')
-         ! call ufbrep(lnbufr,data1b8,1,1,iret,'BEARAZ')
-
-         ! check if observation outside range
-
-         num_tovs_file = num_tovs_file + 1
-
-         ! 2.0     Extract observation location and other required information
-         !     QC1:  judge if data is in the domain, read next record if not
-         !------------------------------------------------------------------------
-         ! rlat = bfr1bhdr(bufr_lat)
-         ! rlon = bfr1bhdr(bufr_lat)
-         ! if (rlon < 0.0) rlon = rlon+360.0
-
-         if(abs(bfr2bhdr(1)) <= 90. .and. abs(bfr2bhdr(2)) <= 360.)then
-            info%lat = bfr2bhdr(1)
-            info%lon = bfr2bhdr(2)
-         elseif(abs(bfr1bhdr(9)) <= 90. .and. abs(bfr1bhdr(10)) <= 360.)then
-            info%lat = bfr1bhdr(9)
-            info%lon = bfr1bhdr(10)
-         endif
-
-         call da_llxy (info, loc, outside, outside_all)
-
-         if (outside_all) cycle
-
-         !  3.0     Extract other information
-         !------------------------------------------------------
-         !  3.1     Extract satellite id and scan position. 
-   
-         if ( nint(bfr1bhdr(bufr_satellite_id)) >= 200 .and. nint(bfr1bhdr(bufr_satellite_id)) <= 204 ) then
-            platform_id = 1
-            satellite_id = nint(bfr1bhdr(bufr_satellite_id))-192
-         else if ( nint(bfr1bhdr(bufr_satellite_id)) >= 205 .and. nint(bfr1bhdr(bufr_satellite_id)) <= 209 ) then
-            platform_id = 1
-            satellite_id = nint(bfr1bhdr(bufr_satellite_id))-191
-         else if ( nint(bfr1bhdr(bufr_satellite_id)) == 223 ) then ! noaa-19
-            platform_id = 1
-            satellite_id = nint(bfr1bhdr(bufr_satellite_id))-204
-         else if ( nint(bfr1bhdr(bufr_satellite_id)) >= 3 .and. nint(bfr1bhdr(bufr_satellite_id)) <= 5 ) then
-            platform_id = 10
-            satellite_id = nint(bfr1bhdr(bufr_satellite_id))-2
-         else if ( nint(bfr1bhdr(bufr_satellite_id)) == 708 ) then ! tiros-n
-            platform_id = 19
-            satellite_id = 0
-         else if ( nint(bfr1bhdr(bufr_satellite_id)) == 224 ) then ! npp
-            platform_id = 17
-            satellite_id = 0
-         else if ( nint(bfr1bhdr(bufr_satellite_id)) >= 701 .and. nint(bfr1bhdr(bufr_satellite_id)) <= 707 ) then
-            platform_id = 1
-            satellite_id = nint(bfr1bhdr(bufr_satellite_id))-700
-         end if
-         ifov = nint(bfr1bhdr(bufr_ifov))    
-
-
-         !  QC2:  limb pixel rejected (not implemented)
-
-         !  3.2     Extract date information.
-    
-         year   = bfr1bhdr(bufr_year)   
-         month  = bfr1bhdr(bufr_month)  
-         day    = bfr1bhdr(bufr_day)    
-         hour   = bfr1bhdr(bufr_hour)   
-         minute = bfr1bhdr(bufr_minute) 
-         second = bfr1bhdr(bufr_second) 
-         
-         write(unit=info%date_char, fmt='(i4,a,i2.2,a,i2.2,a,i2.2,a,i2.2,a,i2.2)')  &
-            year, '-', month, '-', day, '_', hour, ':', minute, ':', second
-
-         !  QC3: time consistency check with the background date
-
-         if (year <= 99) then
-            if (year < 78) then
-               year = year + 2000
-            else
-               year = year + 1900
-            end if
-         end if
-
-         call da_get_julian_time(year,month,day,hour,minute,obs_time)
-
-         if (obs_time < time_slots(0) .or.  &
-            obs_time >= time_slots(num_fgat_time)) cycle
-
-         ! 3.2.1 determine FGAT index ifgat
-   
-         do ifgat=1,num_fgat_time
-            if (obs_time >= time_slots(ifgat-1) .and.  &
-                obs_time  < time_slots(ifgat)) exit
-         end do
-
-         ! 3.3 Find wrfvar instrument index from RTTOV instrument triplet
-         !     go to next data if id is not in the lists
-
-         inst = 0
-         do i = 1, rtminit_nsensor
-            if (platform_id  == rtminit_platform(i) &
-               .and. satellite_id == rtminit_satid(i)    &
-               .and. sensor_id    == rtminit_sensor(i)) then
-               inst = i
-               exit
-            end if
-         end do
-         if (inst == 0) cycle
-
-         ! 3.4 extract satellite and solar angle
-   
-         panglr=(start+float(ifov-1)*step)*deg2rad
-         if (hirs2 .or. msu) then
-            satzen = asin(rato*sin(panglr))*rad2deg
-            satzen = abs(satzen)
-         else
-            satzen = bfr1bhdr(bufr_satzen) !*deg2rad   ! local zenith angle
-            satzen = abs(satzen)
- 
-            ! if (amsua .and. ifov .le. 15) satzen=-satzen
-            ! if (amsub .and. ifov .le. 45) satzen=-satzen
-            ! if (hirs3 .and. ifov .le. 28) satzen=-satzen
-         end if
-         if ( satzen > 65.0 ) cycle   ! CRTM has a satzen > 65.0 check
-         satazi = panglr*rad2deg            ! look angle
-         ! if (satazi<0.0) satazi = satazi+360.0
-         solzen = bfr1bhdr(bufr_solzen)              ! solar zenith angle
-         solazi = bfr1bhdr(bufr_solazi)              !RTTOV9_3
-
-         num_tovs_global = num_tovs_global + 1
-         ptotal(ifgat) = ptotal(ifgat) + 1
-
-         if (num_tovs_global < tovs_start) then
-            cycle
-         end if
-
-         if (num_tovs_global > tovs_end) then
-            write (unit=stdout,fmt='(A,I6)') "   Skipping radiance obs after", tovs_end
-            exit obs
-         end if
-
-         num_tovs_selected = num_tovs_selected + 1
- 
-         if (num_tovs_selected > max_tovs_input) then
-            write(unit=message(1),fmt='(A,I10,A)') &
-               "Max number of tovs",max_tovs_input," reached"
-            call da_warning(__FILE__,__LINE__,message(1:1))
-            num_tovs_selected = num_tovs_selected-1
-            num_tovs_global   = num_tovs_global-1
-            ptotal(ifgat) = ptotal(ifgat) - 1
-            exit obs
-         end if
-
-         if (outside) cycle ! No good for this PE
-         num_tovs_local = num_tovs_local + 1
-
-         !  Make Thinning
-         !  Map obs to thinning grid
-         !-------------------------------------------------------------------
-         if (thinning) then
-            dlat_earth = info%lat
-            dlon_earth = info%lon
-            if (dlon_earth<zero) dlon_earth = dlon_earth+r360
-            if (dlon_earth>=r360) dlon_earth = dlon_earth-r360
-            dlat_earth = dlat_earth*deg2rad
-            dlon_earth = dlon_earth*deg2rad           
-            timedif = 0.0 !2.0_r_kind*abs(tdiff)        ! range:  0 to 6
-            terrain = 0.01_r_kind*abs(bfr1bhdr(13))
-            crit = 1.0 !0.01_r_kind+terrain + timedif !+ 10.0_r_kind*float(iskip)
-            call map2grids(inst,ifgat,dlat_earth,dlon_earth,crit,iobs,itx,1,itt,iout,iuse)
-            if (.not. iuse) then
-               num_tovs_thinned=num_tovs_thinned+1
-               cycle
-            end if
-         end if
-
-         num_tovs_used = num_tovs_used + 1
-         nread(inst) = nread(inst) + 1
-
-         ! 3.5 extract surface information
-         srf_height = bfr1bhdr(bufr_station_height)          ! station height
-         if (srf_height < 8888.0 .AND. srf_height > -416.0) then
-         else
-            srf_height = 0.0
-         endif  
-
-         landsea_mask = nint(bfr1bhdr(bufr_landsea_mask))  ! 0:land ; 1:sea (same as RTTOV)
-         ! rmask=one                          ! land
-         ! if (nint(bfr1bhdr(bufr_landsea_mask))==1) rmask=0.0_r_kind   ! reverse the land/sea mask in bufr
-         ! landsea_mask = rmask+.001_r_kind             ! land sea mask
-
-         info%elv = srf_height
-
          ! 3.6 extract channel bright temperature
    
-         tb_inv(1:nchan) = data1b8(1:nchan)
+         do k = 1, nchan
+            tb_inv(k) = real(main_beam_antenna_temperatures(k,rid))
+         enddo
          do k = 1, nchan
             if ( tb_inv(k) < tbmin .or. tb_inv(k) > tbmax) &
                tb_inv(k) = missing_r
@@ -713,12 +514,25 @@ bufrfile:  do ibufr=1,numbufr
 
          p => p%next
          nullify (p%next)
-      end do
-   end do obs
 
-   ierr=nf_close(ncid)
-   call closbf(lnbufr)
-   close(lnbufr)
+
+   enddo obs
+
+   write (unit=stdout,fmt='(A,I6)') "   Number of local records in netcdf file: ", num_tovs_local
+
+
+   ! SE - deallocate vaiables
+   deallocate(main_beam_antenna_temperatures)
+   deallocate(altitude)
+   deallocate(sat_zen)
+   deallocate(sat_az)
+   deallocate(sun_zen)
+   deallocate(sun_az)
+   deallocate(on_earth)
+   deallocate(latitude)
+   deallocate(longitude)
+   deallocate(unix_timestamps)
+
 
 end do bufrfile
 
