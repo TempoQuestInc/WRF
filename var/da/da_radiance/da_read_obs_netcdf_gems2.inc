@@ -24,22 +24,13 @@ subroutine da_read_obs_netcdf_gems2 (obstype,iv, infile)
    integer          :: iost
    integer(i_kind), allocatable :: nread(:)
 
-   integer(i_kind),parameter:: n1bhdr=15
-   integer(i_kind),parameter:: n2bhdr=2
-   integer(i_kind),parameter:: maxinfo=12
-   integer(i_kind),parameter:: maxchanl=100
-
-   logical hirs2,hirs3,hirs4,msu,amsua,amsub,mhs,atms
    logical outside, outside_all, iuse
    integer :: inst
 
    character(10) date
-   character(8) subset,subfgn
-   character(80) hdr1b
-   character(80) hdr2b
-   integer(i_kind) ihh,i,j,k,ifov,idd,ireadmg,ireadsb
-   integer(i_kind) iret,idate,im,iy,nchan
-   integer :: num_bufr(7), numbufr, ibufr
+   integer(i_kind) i,j,k,ifov
+   integer(i_kind) nchan
+   integer :: num_netcdf(7), numnetcdf, inetcdf
    character(20) :: filename
 
    ! thinning variables
@@ -48,13 +39,6 @@ subroutine da_read_obs_netcdf_gems2 (obstype,iv, infile)
    real(r_kind) dlon_earth,dlat_earth
 
    real(r_kind) tbmin,tbmax, tbbad
-   real(r_kind) panglr,rato
-   ! real(r_kind) rmask
-   real(r_kind) step,start
-
-   real(r_double),dimension(maxinfo+maxchanl):: data1b8
-   real(r_double),dimension(n1bhdr):: bfr1bhdr
-   real(r_double),dimension(n2bhdr):: bfr2bhdr
 
    ! Instrument triplet, follow the convension of RTTOV 
    integer   :: platform_id, satellite_id, sensor_id
@@ -76,14 +60,11 @@ subroutine da_read_obs_netcdf_gems2 (obstype,iv, infile)
    type(info_type)                ::  info
    type(model_loc_type)           ::  loc
 
-   data hdr1b /'SAID FOVN YEAR MNTH DAYS HOUR MINU SECO CLAT CLON SAZA SOZA HOLS LSQL SOLAZI'/
-   data hdr2b /'CLATH CLONH'/
-   !  data hdr1b /'FOVN YEAR MNTH DAYS HOUR MINU SECO CLAT CLON SAZA SOZA HOLS LSQL SLNM BEARAZ'/
 
    data tbmin,tbmax,tbbad / 50.0_r_kind, 550.0_r_kind, -9.99e11_r_kind /
    integer :: num_tovs_local, num_tovs_file, num_tovs_global, num_tovs_selected
    integer :: num_tovs_thinned, num_tovs_used, num_tovs_used_tmp
-   integer :: lnbufr
+   integer :: lnnetcdf
    integer :: n
    integer(i_kind), allocatable :: ptotal(:)
    real , allocatable :: in(:), out(:)
@@ -121,10 +102,7 @@ subroutine da_read_obs_netcdf_gems2 (obstype,iv, infile)
    !    nchan=nchan_mhs
    !    subfgn='NC021027'
   sensor_id    =  -1
-  step   = -1.0_r_kind
-  start  = -1.0_r_kind
   nchan=nchan_gems2
-  subfgn='NONE'
 
    allocate (tb_inv(nchan))
 
@@ -136,38 +114,38 @@ subroutine da_read_obs_netcdf_gems2 (obstype,iv, infile)
    num_tovs_selected = 0    ! number of obs limited for debuging
    iobs = 0                 ! for thinning, argument is inout
 
-   ! 0.0  Open unit to satellite bufr file and read file header
+   ! 0.0  Open unit to satellite netcdf file and read file header
    !--------------------------------------------------------------
 
-   num_bufr(:)=0
-   numbufr=0
+   num_netcdf(:)=0
+   numnetcdf=0
    if (num_fgat_time>1) then
       do i=1,7
-         call da_get_unit(lnbufr)
+         call da_get_unit(lnnetcdf)
          write(filename,fmt='(A,2I1,A)') trim(infile),0,i,'.nc'
-         open(unit   = lnbufr, FILE   = trim(filename),iostat =  iost, form = 'unformatted', STATUS = 'OLD')
+         open(unit   = lnnetcdf, FILE   = trim(filename),iostat =  iost, form = 'unformatted', STATUS = 'OLD')
          if (iost == 0) then
-            numbufr=numbufr+1
-	        num_bufr(numbufr)=i
+            numnetcdf=numnetcdf+1
+	        num_netcdf(numnetcdf)=i
          else
-            close (lnbufr)
+            close (lnnetcdf)
          end if
-         call da_free_unit(lnbufr)
+         call da_free_unit(lnnetcdf)
       end do
    else
-     numbufr=1
+     numnetcdf=1
    end if
   
-   if (numbufr==0) numbufr=1
+   if (numnetcdf==0) numnetcdf=1
 
-bufrfile:  do ibufr=1,numbufr   
+netcdffile:  do inetcdf=1,numnetcdf   
    if (num_fgat_time==1) then
       filename=trim(infile)//'.nc'
    else
-      if ((numbufr ==1) .and. (num_bufr(ibufr) == 0)) then
+      if ((numnetcdf ==1) .and. (num_netcdf(inetcdf) == 0)) then
          filename=trim(infile)//'.nc'
       else
-         write(filename,fmt='(A,2I1,A)') trim(infile),0,num_bufr(ibufr),'.nc'   
+         write(filename,fmt='(A,2I1,A)') trim(infile),0,num_netcdf(inetcdf),'.nc'   
       end if
    end if
 
@@ -193,10 +171,10 @@ bufrfile:  do ibufr=1,numbufr
    call check_netcdf_status(__FILE__, __LINE__, ierr, "error accessing number_records variable")
    num_tovs_file=nrecords
 
-   ! Loop to read bufr file and assign information to a sequential structure
+   ! Loop to read netcdf file and assign information to a sequential structure
    !-------------------------------------------------------------------------
 
-   if ( ibufr == 1 ) then
+   if ( inetcdf == 1 ) then
       allocate (head)
       !  allocate ( head % tb_inv (1:nchan) )
       nullify  ( head % next )
@@ -402,7 +380,7 @@ bufrfile:  do ibufr=1,numbufr
          ! SE - need to fix this once input file has land/sea mask
          landsea_mask = 1  ! 0:land ; 1:sea (same as RTTOV)
          ! rmask=one                          ! land
-         ! if (nint(bfr1bhdr(bufr_landsea_mask))==1) rmask=0.0_r_kind   ! reverse the land/sea mask in bufr
+         ! if (nint(bfr1bhdr(netcdf_landsea_mask))==1) rmask=0.0_r_kind   ! reverse the land/sea mask in netcdf
          ! landsea_mask = rmask+.001_r_kind             ! land sea mask
 
          info%elv = srf_height
@@ -461,7 +439,7 @@ bufrfile:  do ibufr=1,numbufr
    deallocate(unix_timestamps)
 
 
-end do bufrfile
+end do netcdffile
 
    if (thinning .and. num_tovs_global > 0 ) then
 
