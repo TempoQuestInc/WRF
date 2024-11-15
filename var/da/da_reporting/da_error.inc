@@ -56,6 +56,7 @@ subroutine da_error( file_str, line, errors)
    call wrf_message2( &
       '----------------------------------------------------------------' )
 #endif
+   call flush(stdout)
    call wrf_abort
 end subroutine da_error
 

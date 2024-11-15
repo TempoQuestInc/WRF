@@ -55,6 +55,7 @@ MODULE CRTM_SpcCoeff
                                    SpcCoeff_IsVisibleSensor    , &
                                    SpcCoeff_IsUltravioletSensor
   USE SpcCoeff_Binary_IO   , ONLY: SpcCoeff_Binary_ReadFile
+  USE SpcCoeff_Netcdf_IO   , ONLY: SpcCoeff_Netcdf_ReadFile
   USE CRTM_Parameters      , ONLY: CRTM_Set_Max_nChannels  , &
                                    CRTM_Reset_Max_nChannels
   ! Disable all implicit typing
@@ -263,11 +264,19 @@ CONTAINS
 
     ! Read the SpcCoeff data files
     DO n = 1, n_Sensors
+      if ( TRIM(ADJUSTL(Sensor_ID(n))) == 'gems2sen_gems2plt99') then
+      spccoeff_file = TRIM(path)//TRIM(ADJUSTL(Sensor_ID(n)))//'.SpcCoeff.bin'
+      err_stat = SpcCoeff_Netcdf_ReadFile( &
+        spccoeff_file      , &
+        SC(n)              , &
+        Quiet = .NOT. noisy  )
+      else
       spccoeff_file = TRIM(path)//TRIM(ADJUSTL(Sensor_ID(n)))//'.SpcCoeff.bin'
       err_stat = SpcCoeff_Binary_ReadFile( &
         spccoeff_file      , &
         SC(n)              , &
         Quiet = .NOT. noisy  )
+      endif
       IF ( err_stat /= SUCCESS ) THEN
         WRITE( msg,'("Error reading SpcCoeff file #",i0,", ",a)') n, TRIM(spccoeff_file)
         CALL Display_Message( ROUTINE_NAME, TRIM(msg)//TRIM(pid_msg), err_stat ); RETURN

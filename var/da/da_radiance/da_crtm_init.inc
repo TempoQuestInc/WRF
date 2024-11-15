@@ -29,6 +29,7 @@ subroutine da_crtm_init(iv,ob, nsensor)
   character( 256 ) :: AerosolCoeff_File
   character( 256 ) :: CloudCoeff_File
   character( 256 ) :: File_Path
+  character( 256 ) :: temp_string
 !  character( 80 ), pointer :: Sensor_Descriptor(:)
 !
 ! end of CRTM local
@@ -63,6 +64,16 @@ subroutine da_crtm_init(iv,ob, nsensor)
   ! WMO_Sensor_ID - integer pointer
   !----------------------------------------------------------------- 
 
+       ! call da_error(__FILE__,__LINE__, &
+       !                  (/"CRTM_Init(Sensor_Descriptor=<"//trim(Sensor_Descriptor(1))//",...>,", &
+       !                        "AerosolCoeff_File = "//trim(AerosolCoeff_File)//",", &
+       !                        "CloudCoeff_File = "//trim(CloudCoeff_File)//",", &
+       !                        "IRwaterCoeff_File = "//trim(crtm_irwater_coef)//",", &
+       !                        "MWwaterCoeff_File = "//trim(crtm_mwwater_coef)//",", &
+       !                        "IRlandCoeff_File  = "//trim(crtm_irland_coef)//",",  &
+       !                        "VISlandCoeff_File = "//trim(crtm_visland_coef)//",", &
+       !                        "File_Path = "//trim(File_Path)//")" &
+       !   /))
      Error_Status = CRTM_Init(Sensor_Descriptor, &
                               ChannelInfo, &
                               AerosolCoeff_File = AerosolCoeff_File, &
@@ -74,8 +85,9 @@ subroutine da_crtm_init(iv,ob, nsensor)
                               File_Path = File_Path) 
 
      if ( Error_Status /= 0 ) then 
+           write (temp_string,fmt='(A,I)') 'crtm error code: ', Error_Status
        call da_error(__FILE__,__LINE__, &
-         (/"Error in initializing CRTM"/))
+         (/"Error in initializing CRTM",trim(temp_string)/))
      END IF
 
      iv%instid(1:nsensor)%nlevels = kme-kms+1
