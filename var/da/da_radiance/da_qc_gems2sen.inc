@@ -62,87 +62,87 @@ subroutine da_qc_gems2sen (it, i, nchan, ob, iv)
          end if
          !  b.  reject channels 1~5 and 16~17 over land/sea-ice/snow
          !------------------------------------------------------
-         if (isflg > 0) then 
-            iv%instid(i)%tb_qc(1:5,n)  = qc_bad
-            iv%instid(i)%tb_qc(16:17,n)  = qc_bad
-            if (iv%instid(i)%info%proc_domain(1,n)) &
-               nrej_windowchanl = nrej_windowchanl + 1
-           ! reject whole pixel if not over sea for global case
-            if (global) iv%instid(i)%tb_qc(:,n)  = qc_bad
-            if (only_sea_rad) iv%instid(i)%tb_qc(:,n)  = qc_bad
-         end if
+         ! if (isflg > 0) then 
+         !    iv%instid(i)%tb_qc(1:5,n)  = qc_bad
+         !    iv%instid(i)%tb_qc(16:17,n)  = qc_bad
+         !    if (iv%instid(i)%info%proc_domain(1,n)) &
+         !       nrej_windowchanl = nrej_windowchanl + 1
+         !   ! reject whole pixel if not over sea for global case
+         !    if (global) iv%instid(i)%tb_qc(:,n)  = qc_bad
+         !    if (only_sea_rad) iv%instid(i)%tb_qc(:,n)  = qc_bad
+         ! end if
 
          !  c.  reject channels 13,14(above top model 10mb)
          !------------------------------------------------------
-         iv%instid(i)%tb_qc(13:14,n)  = qc_bad
+         ! iv%instid(i)%tb_qc(13:14,n)  = qc_bad
 
          !    reject limb obs 
          !------------------------------------------------------
-         scanpos = iv%instid(i)%scanpos(n)
-         if (scanpos <= 0 .or. scanpos >= 97) then
-            iv%instid(i)%tb_qc(:,n)  =  qc_bad
-            if (iv%instid(i)%info%proc_domain(1,n)) &
-                  nrej_limb = nrej_limb + 1
-         end if
+         ! scanpos = iv%instid(i)%scanpos(n)
+         ! if (scanpos <= 0 .or. scanpos >= 97) then
+         !    iv%instid(i)%tb_qc(:,n)  =  qc_bad
+         !    if (iv%instid(i)%info%proc_domain(1,n)) &
+         !          nrej_limb = nrej_limb + 1
+         ! end if
 
          ! satzen  = rad%satzen
          ! if (abs(satzen) > 45.0) iv%instid(i)%tb_qc(:,n)  =  qc_bad
 
          !  d. check precipitation 
          !-----------------------------------------------------------
-         if (ob%instid(i)%tb(1,n) > 0.0) then
-            si = iv%instid(i)%tb_inv(1,n)
-            if (isflg .eq.0 .AND. si >= 3.0) then
-               iv%instid(i)%tb_qc(1:8,n) = qc_bad
-               iv%instid(i)%cloud_flag(1:8,n) = qc_bad
-               if (iv%instid(i)%info%proc_domain(1,n)) &
-                  nrej_si = nrej_si + 1
-            elseif (isflg .gt.0 .AND. si >= 1.5) then
-               iv%instid(i)%tb_qc(1:8,n) = qc_bad
-               iv%instid(i)%cloud_flag(1:8,n) = qc_bad
-               if (iv%instid(i)%info%proc_domain(1,n)) &
-                  nrej_si = nrej_si + 1
-            end if
-         end if
+         ! if (ob%instid(i)%tb(1,n) > 0.0) then
+         !    si = iv%instid(i)%tb_inv(1,n)
+         !    if (isflg .eq.0 .AND. si >= 3.0) then
+         !       iv%instid(i)%tb_qc(1:8,n) = qc_bad
+         !       iv%instid(i)%cloud_flag(1:8,n) = qc_bad
+         !       if (iv%instid(i)%info%proc_domain(1,n)) &
+         !          nrej_si = nrej_si + 1
+         !    elseif (isflg .gt.0 .AND. si >= 1.5) then
+         !       iv%instid(i)%tb_qc(1:8,n) = qc_bad
+         !       iv%instid(i)%cloud_flag(1:8,n) = qc_bad
+         !       if (iv%instid(i)%info%proc_domain(1,n)) &
+         !          nrej_si = nrej_si + 1
+         !    end if
+         ! end if
 !ECMWF for atms
-         if (ob%instid(i)%tb(3,n) > 0.0) then
-            si = abs(iv%instid(i)%tb_inv(3,n))
-            if (si >= 5.0) then
-               iv%instid(i)%tb_qc(1:8,n) = qc_bad
-               iv%instid(i)%cloud_flag(1:8,n) = qc_bad
-               if (iv%instid(i)%info%proc_domain(1,n)) &
-                  nrej_si = nrej_si + 1
-            endif
-         endif
-
-         if (ob%instid(i)%tb(16,n) > 0.0 .and. &
-              ob%instid(i)%tb(17,n) > 0.0) then
-            si = ob%instid(i)%tb(16,n) - ob%instid(i)%tb(17,n)
-            if (si >= 3.0) then
-               iv%instid(i)%tb_qc(16:22,n) = qc_bad
-               iv%instid(i)%cloud_flag(16:22,n) = qc_bad
-               if (iv%instid(i)%info%proc_domain(1,n)) &
-                  nrej_si = nrej_si + 1
-            end if
-         end if
+         ! if (ob%instid(i)%tb(3,n) > 0.0) then
+         !    si = abs(iv%instid(i)%tb_inv(3,n))
+         !    if (si >= 5.0) then
+         !       iv%instid(i)%tb_qc(1:8,n) = qc_bad
+         !       iv%instid(i)%cloud_flag(1:8,n) = qc_bad
+         !       if (iv%instid(i)%info%proc_domain(1,n)) &
+         !          nrej_si = nrej_si + 1
+         !    endif
+         ! endif
+         !
+         ! if (ob%instid(i)%tb(16,n) > 0.0 .and. &
+         !      ob%instid(i)%tb(17,n) > 0.0) then
+         !    si = ob%instid(i)%tb(16,n) - ob%instid(i)%tb(17,n)
+         !    if (si >= 3.0) then
+         !       iv%instid(i)%tb_qc(16:22,n) = qc_bad
+         !       iv%instid(i)%cloud_flag(16:22,n) = qc_bad
+         !       if (iv%instid(i)%info%proc_domain(1,n)) &
+         !          nrej_si = nrej_si + 1
+         !    end if
+         ! end if
 !ECMWF for atms
-         if (ob%instid(i)%tb(3,n) > 0.0) then
-            si = abs(iv%instid(i)%tb_inv(3,n))
-            if (si >= 5.0) then
-               iv%instid(i)%tb_qc(16:22,n) = qc_bad
-               iv%instid(i)%cloud_flag(16:22,n) = qc_bad
-               if (iv%instid(i)%info%proc_domain(1,n)) &
-                  nrej_si = nrej_si + 1
-            endif
-         endif
+         ! if (ob%instid(i)%tb(3,n) > 0.0) then
+         !    si = abs(iv%instid(i)%tb_inv(3,n))
+         !    if (si >= 5.0) then
+         !       iv%instid(i)%tb_qc(16:22,n) = qc_bad
+         !       iv%instid(i)%cloud_flag(16:22,n) = qc_bad
+         !       if (iv%instid(i)%info%proc_domain(1,n)) &
+         !          nrej_si = nrej_si + 1
+         !    endif
+         ! endif
 
 
-         if (iv%instid(i)%clwp(n) >= 0.2) then
-            iv%instid(i)%tb_qc(:,n) = qc_bad
-            iv%instid(i)%cloud_flag(:,n) = qc_bad
-            if (iv%instid(i)%info%proc_domain(1,n)) &
-               nrej_clw = nrej_clw + 1
-         end if
+         ! if (iv%instid(i)%clwp(n) >= 0.2) then
+         !    iv%instid(i)%tb_qc(:,n) = qc_bad
+         !    iv%instid(i)%cloud_flag(:,n) = qc_bad
+         !    if (iv%instid(i)%info%proc_domain(1,n)) &
+         !       nrej_clw = nrej_clw + 1
+         ! end if
 
          !   3.1 Estimate Cloud Liquid Water (CLW) in mm over sea
          !       (Grody etal. 2001, JGR, Equation 5b,7c,7d,9)
@@ -167,16 +167,16 @@ subroutine da_qc_gems2sen (it, i, nchan, ob, iv)
          ! else 
          ! end if
 
-         if ((isflg .ne. 0) .and. (iv%instid(i)%ps(n) < 850.0)) then
-            iv%instid(i)%tb_qc(6,n)  = qc_bad
-            if (iv%instid(i)%info%proc_domain(1,n)) &
-               nrej_topo = nrej_topo + 1
-         end if
-         if ((isflg .ne. 0) .and. (iv%instid(i)%ps(n) < 800.0)) then
-            iv%instid(i)%tb_qc(18,n)  = qc_bad
-            if (iv%instid(i)%info%proc_domain(1,n)) &
-               nrej_topo = nrej_topo + 1
-         end if
+         ! if ((isflg .ne. 0) .and. (iv%instid(i)%ps(n) < 850.0)) then
+         !    iv%instid(i)%tb_qc(6,n)  = qc_bad
+         !    if (iv%instid(i)%info%proc_domain(1,n)) &
+         !       nrej_topo = nrej_topo + 1
+         ! end if
+         ! if ((isflg .ne. 0) .and. (iv%instid(i)%ps(n) < 800.0)) then
+         !    iv%instid(i)%tb_qc(18,n)  = qc_bad
+         !    if (iv%instid(i)%info%proc_domain(1,n)) &
+         !       nrej_topo = nrej_topo + 1
+         ! end if
 
          !  g. check iuse
          !-----------------------------------------------------------
