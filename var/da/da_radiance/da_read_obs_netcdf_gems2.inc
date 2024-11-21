@@ -268,6 +268,10 @@ netcdffile:  do inetcdf=1,numnetcdf
 
         ! SE - 3.2 - extract date info
         call unix_to_date(unix_timestamps(rid), year, month, day, hour, minute, second)
+
+         write(unit=info%date_char, fmt='(i4,a,i2.2,a,i2.2,a,i2.2,a,i2.2,a,i2.2)')  &
+            year, '-', month, '-', day, '_', hour, ':', minute, ':', second
+
         call da_get_julian_time(year,month,day,hour,minute,obs_time)
 
         if (obs_time < time_slots(0) .or.  &
