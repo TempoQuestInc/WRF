@@ -572,40 +572,38 @@ end do netcdffile
 
    end do
    
-   ! SE - this is broken for now because of lack of plat/sat/sensor implementation
-   !    - simply uncomment the following section once this is implemented
-   ! !  6.0 assign sequential structure to innovation structure
-   ! !-------------------------------------------------------------
-   ! nread(1:rtminit_nsensor) = 0 
+   !  6.0 assign sequential structure to innovation structure
+   !-------------------------------------------------------------
+   nread(1:rtminit_nsensor) = 0 
+   p => head
+   ! do while ( associated(p) )
+
+   do n = 1, num_tovs_used
+      i = p%sensor_index
+      nread(i) = nread(i) + 1
+
+      call da_initialize_rad_iv (i, nread(i), iv, p)
+
+      current => p
+      p => p%next
+
+      ! free current data
+      deallocate ( current % tb_inv )
+      deallocate ( current )
+   end do
+
+   deallocate ( p )
+
+   deallocate (nread)
+   deallocate (ptotal)
+
+   ! check if sequential structure has been freed
+   !
    ! p => head
-   ! ! do while ( associated(p) )
-   !
-   ! do n = 1, num_tovs_used
-   !    i = p%sensor_index
-   !    nread(i) = nread(i) + 1
-   !
-   !    call da_initialize_rad_iv (i, nread(i), iv, p)
-   !
-   !    current => p
+   ! do i = 1, num_rad_selected
+   !    write (unit=stdout,fmt=*)  i, p%tb_inv(1:nchan)
    !    p => p%next
-   !
-   !    ! free current data
-   !    deallocate ( current % tb_inv )
-   !    deallocate ( current )
    ! end do
-   !
-   ! deallocate ( p )
-   !
-   ! deallocate (nread)
-   ! deallocate (ptotal)
-   !
-   ! ! check if sequential structure has been freed
-   ! !
-   ! ! p => head
-   ! ! do i = 1, num_rad_selected
-   ! !    write (unit=stdout,fmt=*)  i, p%tb_inv(1:nchan)
-   ! !    p => p%next
-   ! ! end do
 
    call da_trace_exit("da_read_obs_netcdf_gems2")
 #else
