@@ -14,7 +14,7 @@ subroutine da_qc_rad (it, ob, iv)
 
    integer :: i, nchan,p,j
    logical   :: amsua, amsub, hirs, msu,airs, hsb, ssmis, mhs, iasi, seviri
-   logical   :: mwts, mwhs, atms, amsr2, imager, ahi, mwhs2, gmi, abi
+   logical   :: mwts, mwhs, atms, amsr2, imager, ahi, mwhs2, gmi, abi, gems2sen
 
    integer, allocatable :: index(:)
    integer :: num_tovs_avg
@@ -68,6 +68,7 @@ subroutine da_qc_rad (it, ob, iv)
          ahi = trim(rttov_inst_name(rtminit_sensor(i))) == 'ahi'
          abi = trim(rttov_inst_name(rtminit_sensor(i))) == 'abi'
       gmi   = trim(rttov_inst_name(rtminit_sensor(i))) == 'gmi'
+      gems2sen   = trim(rttov_inst_name(rtminit_sensor(i))) == 'gems2sen'
       if (hirs) then
          ! 1.0 QC for HIRS
          call da_qc_hirs(it, i,nchan,ob,iv)
@@ -97,6 +98,8 @@ subroutine da_qc_rad (it, ob, iv)
          call da_qc_mwts(it,i,nchan,ob,iv)
       else if (atms) then
          call da_qc_atms(it,i,nchan,ob,iv)
+      else if (gems2sen) then
+         call da_qc_gems2sen(it,i,nchan,ob,iv)
       else if (seviri) then
          call da_qc_seviri(it,i,nchan,ob,iv)
       else if (amsr2) then
