@@ -290,9 +290,9 @@ netcdffile:  do inetcdf=1,numnetcdf
 
          ! SE - These are dummy values for now that shouldn't overlap with existing platform/sat/sensor options. I'll come back to
          ! this once I have a better understanding of the conventions around these
-         platform_id = 99
+         platform_id = 38
          satellite_id = 99
-         sensor_id = 99
+         sensor_id = 89
 
          inst = 0
          do i = 1, rtminit_nsensor
