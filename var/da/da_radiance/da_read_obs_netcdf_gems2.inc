@@ -84,10 +84,9 @@ subroutine da_read_obs_netcdf_gems2 (obstype,iv, infile)
    ! Initialize variables
 
    nchan = 24
-   ! SE - todo - remove the +1
-   allocate(nread(1:rtminit_nsensor+1))
+   allocate(nread(1:rtminit_nsensor))
    allocate(ptotal(0:num_fgat_time))
-   nread(1:rtminit_nsensor+1) = 0
+   nread(1:rtminit_nsensor) = 0
    ptotal(0:num_fgat_time) = 0
 
    ! Set various variables depending on type of data to be read
@@ -291,22 +290,20 @@ netcdffile:  do inetcdf=1,numnetcdf
 
          ! SE - These are dummy values for now that shouldn't overlap with existing platform/sat/sensor options. I'll come back to
          ! this once I have a better understanding of the conventions around these
-         platform_id = 99
-         satellite_id = 99
-         sensor_id = 99
+         platform_id = 100
+         satellite_id = 100
+         sensor_id = 100
 
-         ! SE - this will be the final code but for now just use inst=rtminit_nsensor+1
-         ! inst = 0
-         ! do i = 1, rtminit_nsensor
-         !    if (platform_id  == rtminit_platform(i) &
-         !       .and. satellite_id == rtminit_satid(i)    &
-         !       .and. sensor_id    == rtminit_sensor(i)) then
-         !       inst = i
-         !       exit
-         !    end if
-         ! end do
-         ! if (inst == 0) cycle
-         inst = rtminit_nsensor+1
+         inst = 0
+         do i = 1, rtminit_nsensor
+            if (platform_id  == rtminit_platform(i) &
+               .and. satellite_id == rtminit_satid(i)    &
+               .and. sensor_id    == rtminit_sensor(i)) then
+               inst = i
+               exit
+            end if
+         end do
+         if (inst == 0) cycle
 
          ! 3.4 extract satellite and solar angle
          satzen = real(sat_zen(rid))*rad2deg
