@@ -26,6 +26,7 @@ MODULE CRTM_SfcOptics
                                       SpcCoeff_IsInfraredSensor   , &
                                       SpcCoeff_IsVisibleSensor    , &
                                       SpcCoeff_IsUltravioletSensor, &
+                                      SpcCoeff_Inspect, &
                                       UNPOLARIZED, &
                                       INTENSITY, &
                                       FIRST_STOKES_COMPONENT, &
@@ -39,7 +40,9 @@ MODULE CRTM_SfcOptics
                                       VL_MIXED_POLARIZATION, &
                                       HL_MIXED_POLARIZATION, &
                                       RC_POLARIZATION, &
-                                      LC_POLARIZATION
+                                      LC_POLARIZATION, &
+                                      CONST_MIXED_POLARIZATION, &
+                                      PRA_POLARIZATION
   USE CRTM_Surface_Define,      ONLY: CRTM_Surface_type
   USE CRTM_GeometryInfo_Define, ONLY: CRTM_GeometryInfo_type
   USE CRTM_SfcOptics_Define,    ONLY: CRTM_SfcOptics_type      , &
@@ -463,6 +466,10 @@ CONTAINS
     INTEGER :: i
     INTEGER :: nL, nZ
     REAL(fp) :: SIN2_Angle
+    REAL(fp) :: pv
+    REAL(fp) :: ph
+    REAL(fp) :: phi
+    REAL(fp) :: theta_f
     REAL(fp), DIMENSION(SfcOptics%n_Angles,MAX_N_STOKES) :: Emissivity
     REAL(fp), DIMENSION(SfcOptics%n_Angles,MAX_N_STOKES, &
                         SfcOptics%n_Angles,MAX_N_STOKES) :: Reflectivity
@@ -717,12 +724,59 @@ CONTAINS
             CASE ( LC_POLARIZATION )
               SfcOptics%Emissivity(1:nZ,1)          = Emissivity(1:nZ,1)
               SfcOptics%Reflectivity(1:nZ,1,1:nZ,1) = Reflectivity(1:nZ,1,1:nZ,1)
+            !
+            ! Description:
+            ! ============
+            ! Polarization mixing with constant offset angle for TROPICS
+            !
+            ! Reference:
+            ! ==========
+            ! Leslie, V. (2020): TROPICS Polarization Description, 20 November 2020.
+            ! (Personal Communication)
+            !
+            CASE ( CONST_MIXED_POLARIZATION )
+              SIN2_Angle = (GeometryInfo%Distance_Ratio * &
+                           SIN(DEGREES_TO_RADIANS*SC(SensorIndex)%PolAngle(ChannelIndex)))**2
+              DO i = 1, nZ
+                SfcOptics%Emissivity(i,1) = (Emissivity(i,1)*(SIN2_Angle)) + &
+                                              (Emissivity(i,2)*(ONE-SIN2_Angle))
+                SfcOptics%Reflectivity(i,1,i,1) = (Reflectivity(i,1,i,1)*SIN2_Angle) + &
+                                                  (Reflectivity(i,2,i,2)*(ONE-SIN2_Angle))
+              END DO
+
+            !
+            ! Description:
+            ! ============
+            ! Polarization changing with a defined polarization rotation angle
+            ! as instrument zenith angle changes. Implemented for GEMS-1 SmallSat.
+            !
+            CASE ( PRA_POLARIZATION )
+              CALL Display_Message( ROUTINE_NAME, "SpcCoeff_Inspect():", SUCCESS )
+              CALL SpcCoeff_Inspect(SC(SensorIndex))
+              DO i = 1, nZ
+                ! Alias for the sensor scan angle:
+                phi = GeometryInfo%Sensor_Scan_Radian
+                ! Instrument offset angle:
+                theta_f = DEGREES_TO_RADIANS*SC(SensorIndex)%PolAngle(ChannelIndex)
+                ph = SIN(phi) * ( COS(phi) + SIN(theta_f)*(1.0_fp - COS(phi))  ) &
+                   ! --------------------------------------------------------------
+                     / SQRT( SIN(phi)**2 + SIN(theta_f)**2*(1.0_fp - COS(phi)**2) )
+                pv = - ( SIN(phi)**2 - SIN(theta_f)*(1.0_fp - COS(phi))*COS(phi) ) &
+                   ! ---------------------------------------------------------------
+                     / SQRT( SIN(phi)**2 + SIN(theta_f)**2*(1.0_fp - COS(phi)**2) )
+                ! Sine square of Polarization Rotation Angle (PRA)
+                SIN2_Angle = SIN(ATAN( -pv/ph ))**2
+                SfcOptics%Emissivity(i,1) = (Emissivity(i,1)*(SIN2_Angle)) + &
+                                               (Emissivity(i,2)*(ONE-SIN2_Angle))
+                SfcOptics%Reflectivity(i,1,i,1) = (Reflectivity(i,1,i,1)*SIN2_Angle) + &
+                                                  (Reflectivity(i,2,i,2)*(ONE-SIN2_Angle))
+              END DO
 
             ! Serious problem if we got to this points
             CASE DEFAULT
                Error_Status = FAILURE
                WRITE( Message,'("Unrecognised polarization flag for microwave ",&
-                               &"channel index ",i0)' ) ChannelIndex
+                               &"channel index ",i0," polarization flag: ",i2)' ) ChannelIndex,polarization
                CALL Display_Message( ROUTINE_NAME, Message, Error_Status )
                RETURN
 
@@ -1195,6 +1249,10 @@ CONTAINS
     INTEGER :: nL, nZ
     INTEGER :: Polarization
     REAL(fp) :: SIN2_Angle
+    REAL(fp) :: pv
+    REAL(fp) :: ph
+    REAL(fp) :: phi
+    REAL(fp) :: theta_f
     REAL(fp), DIMENSION(SfcOptics%n_Angles,MAX_N_STOKES) :: Emissivity_TL
     REAL(fp), DIMENSION(SfcOptics%n_Angles,MAX_N_STOKES, &
                         SfcOptics%n_Angles,MAX_N_STOKES) :: Reflectivity_TL
@@ -1426,6 +1484,17 @@ CONTAINS
                                                      (Reflectivity_TL(i,2,i,2)*(ONE-SIN2_Angle))
               END DO
 
+            ! Polarization mixing with constant offset angle for TROPICS
+            CASE ( CONST_MIXED_POLARIZATION )
+              SIN2_Angle = (GeometryInfo%Distance_Ratio * &
+                           SIN(DEGREES_TO_RADIANS*SC(SensorIndex)%PolAngle(ChannelIndex)))**2
+              DO i = 1, nZ
+                SfcOptics_TL%Emissivity(i,1) = (Emissivity_TL(i,1)*(SIN2_Angle)) + &
+                                                  (Emissivity_TL(i,2)*(ONE-SIN2_Angle))
+                SfcOptics_TL%Reflectivity(i,1,i,1) = (Reflectivity_TL(i,1,i,1)*SIN2_Angle) + &
+                                                     (Reflectivity_TL(i,2,i,2)*(ONE-SIN2_Angle))
+              END DO
+
             ! Right circular polarisation
             CASE ( RC_POLARIZATION )
               SfcOptics_TL%Emissivity(1:nZ,1)          = Emissivity_TL(1:nZ,1)
@@ -1436,11 +1505,39 @@ CONTAINS
               SfcOptics_TL%Emissivity(1:nZ,1)          = Emissivity_TL(1:nZ,1)
               SfcOptics_TL%Reflectivity(1:nZ,1,1:nZ,1) = Reflectivity_TL(1:nZ,1,1:nZ,1)
 
+            !
+            ! Description:
+            ! ============
+            ! Polarization changing with a defined polarization rotation angle
+            ! as instrument zenith angle changes. Implemented for GEMS-1 SmallSat.
+            !
+            CASE ( PRA_POLARIZATION )
+              CALL Display_Message( ROUTINE_NAME, "SpcCoeff_Inspect():", SUCCESS )
+              CALL SpcCoeff_Inspect(SC(SensorIndex))
+              DO i = 1, nZ
+                ! Alias for the sensor scan angle:
+                phi = GeometryInfo%Sensor_Scan_Radian
+                ! Instrument offset angle:
+                theta_f = DEGREES_TO_RADIANS*SC(SensorIndex)%PolAngle(ChannelIndex)
+                ph = SIN(phi) * ( COS(phi) + SIN(theta_f)*(1.0_fp - COS(phi))  ) &
+                   ! --------------------------------------------------------------
+                     / SQRT( SIN(phi)**2 + SIN(theta_f)**2*(1.0_fp - COS(phi)**2) )
+                pv = - ( SIN(phi)**2 - SIN(theta_f)*(1.0_fp - COS(phi))*COS(phi) ) &
+                   ! ---------------------------------------------------------------
+                     / SQRT( SIN(phi)**2 + SIN(theta_f)**2*(1.0_fp - COS(phi)**2) )
+                ! Sine square of Polarization Rotation Angle (PRA)
+                SIN2_Angle = SIN(ATAN( -pv/ph ))**2
+                SfcOptics_TL%Emissivity(i,1) = (Emissivity_TL(i,1)*(SIN2_Angle)) + &
+                                               (Emissivity_TL(i,2)*(ONE-SIN2_Angle))
+                SfcOptics_TL%Reflectivity(i,1,i,1) = (Reflectivity_TL(i,1,i,1)*SIN2_Angle) + &
+                                                  (Reflectivity_TL(i,2,i,2)*(ONE-SIN2_Angle))
+              END DO
+
             ! Serious problem if we got to this point
             CASE DEFAULT
               Error_Status = FAILURE
-              WRITE( Message,'("Unrecognised polarization flag for microwave ",&
-                              &"channel index ",i0)' ) ChannelIndex
+               WRITE( Message,'("Unrecognised polarization flag for microwave ",&
+                               &"channel index ",i0," polarization flag: ",i2)' ) ChannelIndex,polarization
               CALL Display_Message( ROUTINE_NAME, Message, Error_Status )
               RETURN
 
@@ -1772,6 +1869,8 @@ CONTAINS
     INTEGER :: nL, nZ
     INTEGER :: Polarization
     REAL(fp) :: SIN2_Angle
+    REAL(fp) :: theta_f
+    REAL(fp) :: phi, ph, pv
     REAL(fp), DIMENSION(SfcOptics%n_Angles,MAX_N_STOKES) :: Emissivity_AD
     REAL(fp), DIMENSION(SfcOptics%n_Angles,MAX_N_STOKES, &
                         SfcOptics%n_Angles,MAX_N_STOKES) :: Reflectivity_AD
@@ -1918,6 +2017,22 @@ CONTAINS
               SfcOptics_AD%Emissivity = ZERO
               SfcOptics_AD%Reflectivity = ZERO
 
+            ! Polarization mixing with constant offset angle for TROPICS
+            CASE ( CONST_MIXED_POLARIZATION )
+              SIN2_Angle = (GeometryInfo%Distance_Ratio * &
+                           SIN(DEGREES_TO_RADIANS*SC(SensorIndex)%PolAngle(ChannelIndex)))**2
+              DO i = 1, nZ
+                ! PS: The adjoint is the transpose of the TL relationship:
+                ! eV_AD = e_AD * SIN^2(theta)
+                ! eH_AD = e_AD * COS^2(theta)
+                Emissivity_AD(i,1) = SfcOptics_AD%Emissivity(i,1)*SIN2_Angle
+                Emissivity_AD(i,2) = SfcOptics_AD%Emissivity(i,1)*(ONE-SIN2_Angle)
+                Reflectivity_AD(i,1,i,1) = SfcOptics_AD%Reflectivity(i,1,i,1)*SIN2_Angle
+                Reflectivity_AD(i,2,i,2) = SfcOptics_AD%Reflectivity(i,1,i,1)*(ONE-SIN2_Angle)
+              END DO
+              SfcOptics_AD%Emissivity   = ZERO
+              SfcOptics_AD%Reflectivity = ZERO
+
             ! Right circular polarisation
             CASE ( RC_POLARIZATION )
               Emissivity_AD(1:nZ,1) = SfcOptics_AD%Emissivity(1:nZ,1)
@@ -1930,6 +2045,39 @@ CONTAINS
               Emissivity_AD(1:nZ,1) = SfcOptics_AD%Emissivity(1:nZ,1)
               SfcOptics_AD%Emissivity = ZERO
               Reflectivity_AD(1:nZ,1,1:nZ,1) = SfcOptics_AD%Reflectivity(1:nZ,1,1:nZ,1)
+              SfcOptics_AD%Reflectivity = ZERO
+
+            !
+            ! Description:
+            ! ============
+            ! Polarization changing with a defined polarization rotation angle
+            ! as instrument zenith angle changes. Implemented for GEMS-1 SmallSat.
+            !
+            CASE ( PRA_POLARIZATION )
+              CALL Display_Message( ROUTINE_NAME, "SpcCoeff_Inspect():", SUCCESS )
+              CALL SpcCoeff_Inspect(SC(SensorIndex))
+              DO i = 1, nZ
+                ! Alias for the sensor scan angle:
+                phi = GeometryInfo%Sensor_Scan_Radian
+                ! Instrument offset angle:
+                theta_f = DEGREES_TO_RADIANS*SC(SensorIndex)%PolAngle(ChannelIndex)
+                ph = SIN(phi) * ( COS(phi) + SIN(theta_f)*(1.0_fp - COS(phi))  ) &
+                   ! --------------------------------------------------------------
+                     / SQRT( SIN(phi)**2 + SIN(theta_f)**2*(1.0_fp - COS(phi)**2) )
+                pv = - ( SIN(phi)**2 - SIN(theta_f)*(1.0_fp - COS(phi))*COS(phi) ) &
+                   ! ---------------------------------------------------------------
+                     / SQRT( SIN(phi)**2 + SIN(theta_f)**2*(1.0_fp - COS(phi)**2) )
+                ! Sine square of Polarization Rotation Angle (PRA)
+                SIN2_Angle = SIN(ATAN( -pv/ph ))**2
+                ! PS: The adjoint is the transpose of the TL relationship:
+                ! eV_AD = e_AD * SIN^2(theta)
+                ! eH_AD = e_AD * COS^2(theta)
+                Emissivity_AD(i,1) = SfcOptics_AD%Emissivity(i,1)*SIN2_Angle
+                Emissivity_AD(i,2) = SfcOptics_AD%Emissivity(i,1)*(ONE-SIN2_Angle)
+                Reflectivity_AD(i,1,i,1) = SfcOptics_AD%Reflectivity(i,1,i,1)*SIN2_Angle
+                Reflectivity_AD(i,2,i,2) = SfcOptics_AD%Reflectivity(i,1,i,1)*(ONE-SIN2_Angle)
+              END DO
+              SfcOptics_AD%Emissivity   = ZERO
               SfcOptics_AD%Reflectivity = ZERO
 
             ! Serious problem if we got to this point

@@ -28,22 +28,24 @@ MODULE CRTM_SpcCoeff
   ! ----------------
   ! Module use
   USE Message_Handler      , ONLY: SUCCESS, FAILURE, WARNING, Display_Message
-  USE SensorInfo_Parameters, ONLY: N_POLARIZATION_TYPES   , &
-                                   INVALID_POLARIZATION   , &
-                                   UNPOLARIZED            , &
-                                   INTENSITY              , &
-                                   FIRST_STOKES_COMPONENT , &
-                                   SECOND_STOKES_COMPONENT, &
-                                   THIRD_STOKES_COMPONENT , &
-                                   FOURTH_STOKES_COMPONENT, &
-                                   VL_POLARIZATION        , &
-                                   HL_POLARIZATION        , &
-                                   plus45L_POLARIZATION   , &
-                                   minus45L_POLARIZATION  , &
-                                   VL_MIXED_POLARIZATION  , &
-                                   HL_MIXED_POLARIZATION  , &
-                                   RC_POLARIZATION        , &
-                                   LC_POLARIZATION        , &
+  USE SensorInfo_Parameters, ONLY: N_POLARIZATION_TYPES    , &
+                                   INVALID_POLARIZATION    , &
+                                   UNPOLARIZED             , &
+                                   INTENSITY               , &
+                                   FIRST_STOKES_COMPONENT  , &
+                                   SECOND_STOKES_COMPONENT , &
+                                   THIRD_STOKES_COMPONENT  , &
+                                   FOURTH_STOKES_COMPONENT , &
+                                   VL_POLARIZATION         , &
+                                   HL_POLARIZATION         , &
+                                   plus45L_POLARIZATION    , &
+                                   minus45L_POLARIZATION   , &
+                                   VL_MIXED_POLARIZATION   , &
+                                   HL_MIXED_POLARIZATION   , &
+                                   RC_POLARIZATION         , &
+                                   LC_POLARIZATION         , &
+                                   CONST_MIXED_POLARIZATION, &
+                                   PRA_POLARIZATION        , &
                                    POLARIZATION_TYPE_NAME 
   USE SpcCoeff_Define      , ONLY: SpcCoeff_type               , &
                                    SpcCoeff_Associated         , &
@@ -95,7 +97,9 @@ MODULE CRTM_SpcCoeff
   PUBLIC :: VL_MIXED_POLARIZATION  
   PUBLIC :: HL_MIXED_POLARIZATION  
   PUBLIC :: RC_POLARIZATION        
-  PUBLIC :: LC_POLARIZATION        
+  PUBLIC :: LC_POLARIZATION  
+  PUBLIC :: CONST_MIXED_POLARIZATION
+  PUBLIC :: PRA_POLARIZATION
   PUBLIC :: POLARIZATION_TYPE_NAME
   
 
