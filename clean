@@ -47,8 +47,8 @@ if ( "$arg" == '-a' || "$arg" == '-aa' ) then
   ( cd tools ; /bin/rm -f registry gen_comms.c fseeko_test fseeko64_test nc4_test.log ) >& /dev/null
   ( cd inc; /bin/rm -f dm_comm_cpp_flags wrf_io_flags.h wrf_status_codes.h ) >& /dev/null
   if ( -f configure.wrf ) then
-    /bin/cp configure.wrf configure.wrf.backup
-    /bin/rm -f configure.wrf >& /dev/null
+    # /bin/cp configure.wrf configure.wrf.backup
+    # /bin/rm -f configure.wrf >& /dev/null
   endif
   if ( "$arg" != '-aa' ) then
     ( cd run ; /bin/rm -f gm* out* fort* ideal* *.exe input_sounding p3_lookupTable_1.dat-3momI_v5.1.6 ; \

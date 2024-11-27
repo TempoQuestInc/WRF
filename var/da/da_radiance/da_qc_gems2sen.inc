@@ -25,7 +25,7 @@ subroutine da_qc_gems2sen (it, i, nchan, ob, iv)
                 nrej_clw,nrej_topo, num_proc_domain,  &
                 nrej_limb
 
-   character(len=30)  :: filename
+   character(len=40)  :: filename
 
    if (trace_use) call da_trace_entry("da_qc_gems2sen")
 
